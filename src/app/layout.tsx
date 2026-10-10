@@ -19,7 +19,7 @@ const mono = JetBrains_Mono({ subsets: ["latin"], variable: "--font-jetbrains", 
 export const dynamic = "force-dynamic";
 
 export const metadata: Metadata = {
-  title: { default: "Speech Reviewer", template: "%s · Speech Reviewer" },
+  title: { default: "Stand-up Knight", template: "%s · Stand-up Knight" },
   description:
     "Record a practice speech and get AI coaching on pacing, filler words, clarity, and audience fit. Powered by open-source models on Hugging Face.",
 };
