@@ -1,3 +1,36 @@
+# dependencies
+/node_modules
+/.pnp
+.pnp.*
+
+# testing
+/coverage
+/test-results
+/playwright-report
+/blob-report
+/playwright/.cache
+
+# next.js
+/.next/
+/out/
+/build
+
+# misc
+.DS_Store
+*.pem
+
+# debug
+npm-debug.log*
+.pnpm-debug.log*
+
+# env files (secrets). .env.example is committed with key names only.
+.env*
+!.env.example
+
+# neon / vercel local state
 .neon
-.env.local
-node_modules/
+.vercel
+
+# typescript
+*.tsbuildinfo
+next-env.d.ts

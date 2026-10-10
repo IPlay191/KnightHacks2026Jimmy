@@ -1,0 +1,216 @@
+@import "tailwindcss";
+
+/*
+ * "Midnight Studio" design tokens (design §12). Single source of truth for
+ * color, type, space, radius, elevation, and motion (R15.2). Components use
+ * the semantic utilities below and never hard-code hex values.
+ */
+:root {
+  /* Surfaces */
+  --sr-canvas: #0b0d17;
+  --sr-surface: #141729;
+  --sr-surface-raised: #1c2038;
+  /* Borders */
+  --sr-border-subtle: #2a2f4d;
+  --sr-border-strong: #6e75a8;
+  /* Text */
+  --sr-text: #f4f5fb;
+  --sr-text-secondary: #b4b9d6;
+  --sr-text-muted: #8c92b5;
+  /* Brand and states */
+  --sr-primary: #8b7cff;
+  --sr-primary-soft: #a99fff;
+  --sr-on-primary: #0b0d17;
+  --sr-record: #ff5c7a;
+  --sr-on-record: #0b0d17;
+  --sr-success: #2dd4bf;
+  --sr-warning: #fbbf24;
+  --sr-info: #60a5fa;
+  --sr-danger: #ff8fa3;
+  --sr-accent-pink: #f472b6;
+  --sr-focus: #ffd166;
+  /* Data palette (R15.8) */
+  --sr-data-1: #a99fff;
+  --sr-data-2: #2dd4bf;
+  --sr-data-3: #fbbf24;
+  --sr-data-4: #60a5fa;
+  --sr-data-5: #f472b6;
+
+  /* Elevation */
+  --sr-shadow-1: 0 1px 2px rgb(0 0 0 / 0.4);
+  --sr-shadow-2: 0 8px 24px -8px rgb(0 0 0 / 0.5), inset 0 1px 0 rgb(255 255 255 / 0.04);
+  --sr-shadow-3: 0 24px 48px -12px rgb(0 0 0 / 0.6);
+  --sr-glow-primary: 0 0 0 1px rgb(139 124 255 / 0.35), 0 12px 40px -12px rgb(139 124 255 / 0.45);
+  --sr-glow-record: 0 0 0 1px rgb(255 92 122 / 0.35), 0 12px 40px -12px rgb(255 92 122 / 0.45);
+
+  /* Motion (mirrored in src/components/motion/tokens.ts) */
+  --sr-dur-instant: 120ms;
+  --sr-dur-fast: 200ms;
+  --sr-dur-base: 350ms;
+  --sr-dur-slow: 600ms;
+  --sr-ease-standard: cubic-bezier(0.22, 1, 0.36, 1);
+
+  color-scheme: dark;
+}
+
+@theme inline {
+  --color-canvas: var(--sr-canvas);
+  --color-surface: var(--sr-surface);
+  --color-surface-raised: var(--sr-surface-raised);
+  --color-border-subtle: var(--sr-border-subtle);
+  --color-border-strong: var(--sr-border-strong);
+  --color-text: var(--sr-text);
+  --color-text-secondary: var(--sr-text-secondary);
+  --color-text-muted: var(--sr-text-muted);
+  --color-primary: var(--sr-primary);
+  --color-primary-soft: var(--sr-primary-soft);
+  --color-on-primary: var(--sr-on-primary);
+  --color-record: var(--sr-record);
+  --color-on-record: var(--sr-on-record);
+  --color-success: var(--sr-success);
+  --color-warning: var(--sr-warning);
+  --color-info: var(--sr-info);
+  --color-danger: var(--sr-danger);
+  --color-accent-pink: var(--sr-accent-pink);
+  --color-focus: var(--sr-focus);
+  --color-data-1: var(--sr-data-1);
+  --color-data-2: var(--sr-data-2);
+  --color-data-3: var(--sr-data-3);
+  --color-data-4: var(--sr-data-4);
+  --color-data-5: var(--sr-data-5);
+
+  --font-display: var(--font-bricolage), ui-sans-serif, system-ui, sans-serif;
+  --font-sans: var(--font-inter), ui-sans-serif, system-ui, sans-serif;
+  --font-mono: var(--font-jetbrains), ui-monospace, monospace;
+
+  --radius-sm: 8px;
+  --radius-md: 12px;
+  --radius-lg: 16px;
+  --radius-xl: 24px;
+
+  --shadow-1: var(--sr-shadow-1);
+  --shadow-2: var(--sr-shadow-2);
+  --shadow-3: var(--sr-shadow-3);
+  --shadow-glow-primary: var(--sr-glow-primary);
+  --shadow-glow-record: var(--sr-glow-record);
+
+  --ease-standard: var(--sr-ease-standard);
+}
+
+/* Type scale (design §12.2). Rem-based so 200% zoom works (R10.8). */
+@utility text-display-xl {
+  font-family: var(--font-display);
+  font-size: clamp(2.5rem, 6vw, 3.5rem);
+  line-height: 1.07;
+  font-weight: 800;
+  letter-spacing: -0.02em;
+}
+@utility text-display-l {
+  font-family: var(--font-display);
+  font-size: 2.75rem;
+  line-height: 1.09;
+  font-weight: 700;
+  letter-spacing: -0.02em;
+}
+@utility text-h1 {
+  font-family: var(--font-display);
+  font-size: clamp(1.875rem, 2.5vw + 1rem, 2.25rem);
+  line-height: 1.22;
+  font-weight: 700;
+  letter-spacing: -0.02em;
+}
+@utility text-h2 {
+  font-family: var(--font-display);
+  font-size: 1.75rem;
+  line-height: 1.29;
+  font-weight: 650;
+  letter-spacing: -0.01em;
+}
+@utility text-h3 {
+  font-size: 1.375rem;
+  line-height: 1.36;
+  font-weight: 600;
+}
+@utility text-body-l {
+  font-size: 1.125rem;
+  line-height: 1.56;
+}
+@utility text-small {
+  font-size: 0.875rem;
+  line-height: 1.57;
+  font-weight: 500;
+}
+@utility text-caption {
+  font-size: 0.8125rem;
+  line-height: 1.38;
+  font-weight: 500;
+}
+@utility text-metric {
+  font-family: var(--font-display);
+  font-size: 2.5rem;
+  line-height: 1.1;
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+}
+
+@layer base {
+  html {
+    background: var(--sr-canvas);
+    color: var(--sr-text);
+    scroll-padding-top: 5rem; /* keeps focused elements clear of the sticky header (WCAG 2.4.11) */
+    -webkit-text-size-adjust: 100%;
+  }
+  body {
+    font-family: var(--font-sans);
+    font-size: 1rem;
+    line-height: 1.625;
+    font-feature-settings: "cv11", "ss01";
+    min-height: 100dvh;
+  }
+  /* Visible focus everywhere: 2 px ring with a 2 px canvas-colored gap (R16.2). */
+  :focus-visible {
+    outline: 2px solid var(--sr-focus);
+    outline-offset: 2px;
+    border-radius: 4px;
+  }
+  ::selection {
+    background: rgb(139 124 255 / 0.4);
+  }
+  .tabular {
+    font-variant-numeric: tabular-nums;
+  }
+  /* Reduced motion: CSS transitions follow the same decision as GSAP (R15.7). */
+  html[data-motion="reduce"] *,
+  html[data-motion="reduce"] *::before,
+  html[data-motion="reduce"] *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
+}
+
+/* Decorative aurora behind hero areas (design §12.1). */
+.sr-aurora {
+  position: absolute;
+  inset: 0;
+  overflow: hidden;
+  pointer-events: none;
+  z-index: 0;
+}
+.sr-aurora__blob {
+  position: absolute;
+  border-radius: 9999px;
+  filter: blur(80px);
+  will-change: transform;
+}
+.sr-aurora__scrim {
+  position: absolute;
+  inset: 0;
+  background: radial-gradient(ellipse at top, transparent 0%, rgb(11 13 23 / 0.55) 60%, var(--sr-canvas) 100%);
+}
+
+/* Hatched pattern for long-pause bars in charts */
+.sr-hatch {
+  fill: url(#sr-hatch);
+}

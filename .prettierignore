@@ -1,0 +1,11 @@
+node_modules
+.next
+drizzle
+pnpm-lock.yaml
+.kiro
+.agents
+skills-lock.json
+playwright-report
+test-results
+public/worklets
+*.md

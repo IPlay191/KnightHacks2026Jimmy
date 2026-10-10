@@ -1,0 +1,10 @@
+allowBuilds:
+  sharp: true
+  unrs-resolver: true
+  esbuild: true
+  msw: true
+minimumReleaseAgeExclude:
+  - '@types/node@24.19.2'
+  - lucide-react@1.55.0
+  - msw@3.0.3
+  - prettier@3.9.10
