@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { AudioLines } from "lucide-react";
+import { ChessKnight } from "lucide-react";
 
 const LINKS = [
   { href: "/studio", label: "Studio" },
@@ -16,14 +16,18 @@ export function TopNav({ showLinks = true }: { showLinks?: boolean }) {
   return (
     <header className="sticky top-0 z-40 border-b border-border-subtle bg-canvas/85 backdrop-blur-md">
       <div className="mx-auto flex h-16 max-w-[1200px] items-center justify-between gap-4 px-4 sm:px-6">
-        <Link href="/" className="flex items-center gap-2 rounded-md font-display text-lg font-bold text-text">
+        <Link
+          href="/"
+          aria-label="Knightly Speeches home"
+          className="flex items-center gap-2 rounded-md font-display text-lg font-bold text-text"
+        >
           <span
             aria-hidden="true"
             className="inline-flex size-8 items-center justify-center rounded-md bg-gradient-to-br from-primary to-success text-on-primary"
           >
-            <AudioLines size={18} strokeWidth={2.5} />
+            <ChessKnight size={18} strokeWidth={2.5} />
           </span>
-          <span>Speech Reviewer</span>
+          <span>Knightly Speeches</span>
         </Link>
         {showLinks ? (
           <nav aria-label="Primary">

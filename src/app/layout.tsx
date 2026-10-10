@@ -19,9 +19,16 @@ const mono = JetBrains_Mono({ subsets: ["latin"], variable: "--font-jetbrains", 
 export const dynamic = "force-dynamic";
 
 export const metadata: Metadata = {
-  title: { default: "Stand-up Knight", template: "%s · Stand-up Knight" },
+  title: { default: "Knightly Speeches", template: "%s · Knightly Speeches" },
+  applicationName: "Knightly Speeches",
   description:
-    "Record a practice speech and get AI coaching on pacing, filler words, clarity, and audience fit. Powered by open-source models on Hugging Face.",
+    "Knightly Speeches: record a practice speech and get AI coaching on pacing, filler words, clarity, and audience fit. Powered by open-source models on Hugging Face.",
+  openGraph: {
+    title: "Knightly Speeches",
+    description: "Practice out loud and get AI coaching on pacing, filler words, clarity, and audience fit.",
+    siteName: "Knightly Speeches",
+    type: "website",
+  },
 };
 
 export const viewport: Viewport = {

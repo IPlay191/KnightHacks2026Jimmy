@@ -8,19 +8,38 @@ import { defaultDeps, fetchWithRetry, HF_ROUTER, UpstreamError, type HttpDeps } 
 import { mockTranscribe } from "./mock";
 
 /** Whisper speech-to-text via Hugging Face Inference Providers (design §4.2, R6). */
-export const AsrResponse = z.object({
-  text: z.string(),
-  chunks: z
-    .array(
-      z.object({
-        text: z.string(),
-        timestamp: z.tuple([z.number().nullable(), z.number().nullable()]),
-      }),
-    )
-    .optional()
-    .nullable(),
+const RawChunk = z.object({
+  text: z.string().catch(""),
+  // Providers differ: [start, end], [start, null], or missing.
+  timestamp: z.array(z.number().nullable()).optional().nullable(),
 });
-export type AsrResponse = z.infer<typeof AsrResponse>;
+const RawAsr = z.object({
+  text: z.string(),
+  chunks: z.array(RawChunk).optional().nullable().catch(null),
+});
+
+/** Normalized ASR response: `{ text, chunks: [{ text, timestamp: [start, end] }] }`. */
+export interface AsrResponse {
+  text: string;
+  chunks?: { text: string; timestamp: [number | null, number | null] }[] | null;
+}
+
+/**
+ * Lenient parsing of the ASR reply. Accepts a bare object or a one-element
+ * array, and tolerates missing or partial timestamps.
+ */
+export function parseAsrResponse(json: unknown): AsrResponse | null {
+  const candidate = Array.isArray(json) ? json[0] : json;
+  const parsed = RawAsr.safeParse(candidate);
+  if (!parsed.success) return null;
+  const chunks = parsed.data.chunks
+    ?.filter((c) => Array.isArray(c.timestamp) && c.timestamp.length > 0)
+    .map((c) => ({
+      text: c.text,
+      timestamp: [c.timestamp?.[0] ?? null, c.timestamp?.[1] ?? null] as [number | null, number | null],
+    }));
+  return { text: parsed.data.text, chunks: chunks && chunks.length ? chunks : null };
+}
 
 export interface AsrChunkInput {
   wav: Uint8Array;
@@ -80,6 +99,14 @@ function toBase64(bytes: Uint8Array): string {
   return Buffer.from(bytes.buffer, bytes.byteOffset, bytes.byteLength).toString("base64");
 }
 
+/**
+ * Request formats:
+ * - "json": `{ inputs: base64, parameters: { return_timestamps: true } }` (segment timing)
+ * - "raw":  the WAV bytes with `Content-Type: audio/wav` (no timestamps; timing is
+ *   then interpolated across voiced regions, R6.3). Used when "json" is rejected.
+ */
+type AsrMode = "json" | "raw";
+
 async function callModel(
   model: string,
   input: AsrChunkInput,
@@ -87,8 +114,22 @@ async function callModel(
   deps: HttpDeps,
   token: string,
   maxAttempts: number,
+  mode: AsrMode,
 ): Promise<{ body: AsrResponse; latencyMs: number }> {
   const started = deps.now();
+  const headers: Record<string, string> = {
+    Authorization: `Bearer ${token}`,
+    // Ask hf-inference to wait for a cold model instead of returning 503 immediately.
+    "x-wait-for-model": "true",
+  };
+  let body: BodyInit;
+  if (mode === "json") {
+    headers["Content-Type"] = "application/json";
+    body = JSON.stringify({ inputs: toBase64(input.wav), parameters: { return_timestamps: true } });
+  } else {
+    headers["Content-Type"] = "audio/wav";
+    body = new Blob([input.wav as Uint8Array<ArrayBuffer>], { type: "audio/wav" });
+  }
   const res = await fetchWithRetry({
     url: `${HF_ROUTER}/hf-inference/models/${model}`,
     kind: "asr",
@@ -96,18 +137,49 @@ async function callModel(
     attemptTimeoutMs: ASR_ATTEMPT_TIMEOUT_MS,
     maxAttempts,
     deps,
-    init: {
-      method: "POST",
-      headers: { Authorization: `Bearer ${token}`, "Content-Type": "application/json" },
-      body: JSON.stringify({ inputs: toBase64(input.wav), parameters: { return_timestamps: true } }),
-    },
+    init: { method: "POST", headers, body },
     onAttempt: (a) =>
-      a.failure && log.warn("hf.asr.attempt", { model, attempt: a.attempt, status: a.status, failure: a.failure, latencyMs: a.latencyMs }),
+      a.failure &&
+      log.warn("hf.asr.attempt", {
+        model,
+        attempt: a.attempt,
+        status: a.status,
+        failure: `${mode}:${a.failure}`,
+        latencyMs: a.latencyMs,
+        detail: a.detail,
+      }),
   });
   const json: unknown = await res.json().catch(() => null);
-  const parsed = AsrResponse.safeParse(json);
-  if (!parsed.success) throw new UpstreamError("transient", "unexpected ASR response shape");
-  return { body: parsed.data, latencyMs: deps.now() - started };
+  const parsed = parseAsrResponse(json);
+  if (!parsed) {
+    log.warn("hf.asr.bad_shape", {
+      model,
+      failure: mode,
+      detail: JSON.stringify(json ?? null).slice(0, 200).replace(/"text":"[^"]*"/g, '"text":"…"'),
+    });
+    throw new UpstreamError("bad_input", "unexpected ASR response shape");
+  }
+  return { body: parsed, latencyMs: deps.now() - started };
+}
+
+/** One model: JSON with timestamps first, then raw audio if the JSON form is rejected. */
+async function transcribeWith(
+  model: string,
+  input: AsrChunkInput,
+  deadline: number,
+  deps: HttpDeps,
+  token: string,
+  maxAttempts: number,
+): Promise<{ body: AsrResponse; latencyMs: number }> {
+  try {
+    return await callModel(model, input, deadline, deps, token, maxAttempts, "json");
+  } catch (err) {
+    if (err instanceof UpstreamError && err.kind === "bad_input") {
+      log.warn("hf.asr.retry_raw", { model, status: err.status });
+      return callModel(model, input, deadline, deps, token, 1, "raw");
+    }
+    throw err;
+  }
 }
 
 export function toAsrResult(body: AsrResponse, input: AsrChunkInput, model: string, latencyMs: number): AsrResult {
@@ -135,12 +207,13 @@ export async function transcribeChunk(
   const deps = opts.deps ?? defaultDeps;
   const token = env.HF_TOKEN ?? "";
   try {
-    const { body, latencyMs } = await callModel(env.HF_ASR_MODEL, input, opts.deadline, deps, token, 3);
+    const { body, latencyMs } = await transcribeWith(env.HF_ASR_MODEL, input, opts.deadline, deps, token, 3);
     return toAsrResult(body, input, env.HF_ASR_MODEL, latencyMs);
   } catch (err) {
-    if (!(err instanceof UpstreamError) || err.kind === "config" || err.kind === "bad_input") throw err;
+    // Auth problems won't be fixed by another model; everything else gets one fallback try.
+    if (!(err instanceof UpstreamError) || err.kind === "config") throw err;
     log.warn("hf.asr.fallback", { model: env.HF_ASR_FALLBACK_MODEL, failure: err.kind, status: err.status });
-    const { body, latencyMs } = await callModel(env.HF_ASR_FALLBACK_MODEL, input, opts.deadline, deps, token, 1);
+    const { body, latencyMs } = await transcribeWith(env.HF_ASR_FALLBACK_MODEL, input, opts.deadline, deps, token, 1);
     return toAsrResult(body, input, env.HF_ASR_FALLBACK_MODEL, latencyMs);
   }
 }

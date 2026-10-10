@@ -41,7 +41,7 @@ const PITCH = [
   "Like most people I used to rush through every presentation and hope nobody noticed.",
   "You know that feeling when your heart races and the words just pour out too fast?",
   "Uh that was me at my first hackathon demo and honestly it did not go well.",
-  "So we built a speech reviewer that listens to a practice run and gives you feedback.",
+  "So we built Knightly Speeches, a coach that listens to a practice run and gives you feedback.",
   "It measures your pace your pauses and the filler words you use without noticing.",
   "Then an open source language model reads your transcript and coaches you like a mentor would.",
   "Every session is saved so you can actually see yourself getting better over time.",

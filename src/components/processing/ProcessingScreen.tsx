@@ -158,6 +158,7 @@ export function ProcessingScreen({ sessionId, autoAdvance }: { sessionId: string
               <AlertCircle aria-hidden="true" className="text-danger" /> {STAGE_LABELS[view.error.stage]} failed
             </h2>
             <p className="mt-2 text-text-secondary">{view.error.message}</p>
+            <p className="mt-1 text-caption text-text-muted">Error code: {view.error.code}</p>
           </div>
           <div className="mt-4 flex flex-wrap gap-3">
             {view.error.action === "retry" && (view.error.stage !== "transcribe" || recording?.chunks.length) ? (

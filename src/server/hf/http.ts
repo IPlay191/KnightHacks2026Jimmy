@@ -73,7 +73,7 @@ export interface RetryOptions {
   attemptTimeoutMs: number;
   maxAttempts: number;
   deps?: HttpDeps;
-  onAttempt?: (info: { attempt: number; status?: number; failure?: string; latencyMs: number }) => void;
+  onAttempt?: (info: { attempt: number; status?: number; failure?: string; latencyMs: number; detail?: string }) => void;
 }
 
 /**
@@ -102,7 +102,8 @@ export async function fetchWithRetry(opts: RetryOptions): Promise<Response> {
       const text = await res.text().catch(() => "");
       const kind = classify(res.status, text, opts.kind);
       const retryAfter = parseRetryAfter(res.headers.get("retry-after"), deps.now());
-      opts.onAttempt?.({ attempt, status: res.status, failure: `http_${res.status}`, latencyMs });
+      // Upstream error bodies are short provider messages (never our payload), useful for diagnosis.
+      opts.onAttempt?.({ attempt, status: res.status, failure: `http_${res.status}`, latencyMs, detail: text.slice(0, 200) });
       lastError = new UpstreamError(kind, `HTTP ${res.status}`, {
         status: res.status,
         retryAfterSec: retryAfter !== null ? Math.ceil(retryAfter / 1000) : undefined,

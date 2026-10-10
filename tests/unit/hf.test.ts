@@ -1,6 +1,6 @@
 import { describe, expect, it, vi, beforeEach } from "vitest";
 import { classify, fetchWithRetry, parseRetryAfter, UpstreamError, type HttpDeps } from "@/server/hf/http";
-import { isSilenceHallucination, isWordLevel, mapTimestamps } from "@/server/hf/asr";
+import { isSilenceHallucination, isWordLevel, mapTimestamps, parseAsrResponse } from "@/server/hf/asr";
 import { extractJson, normalizeCoaching, parseCoaching } from "@/server/hf/parse";
 import { buildTranscriptBlock, buildUserPrompt, SYSTEM_PROMPT } from "@/server/hf/prompts";
 import { coachingJsonSchema, generateCoaching } from "@/server/hf/coach";
@@ -95,6 +95,13 @@ describe("ASR mapping", () => {
     expect(out[0]).toEqual({ text: "Hello there", startMs: 10_000, endMs: 11_500 });
     expect(out[1]!.endMs).toBe(20_000);
     expect(out[2]).toEqual({ text: "beyond", startMs: 20_000, endMs: 20_000 });
+  });
+  it("parses ASR replies leniently across provider shapes", () => {
+    expect(parseAsrResponse({ text: "hi there" })).toEqual({ text: "hi there", chunks: null });
+    expect(parseAsrResponse([{ text: "hi", chunks: [{ text: "hi", timestamp: [0, 1] }] }])?.chunks).toHaveLength(1);
+    expect(parseAsrResponse({ text: "hi", chunks: [{ text: "hi", timestamp: [0.5] }] })?.chunks?.[0]?.timestamp).toEqual([0.5, null]);
+    expect(parseAsrResponse({ text: "hi", chunks: "weird" })).toEqual({ text: "hi", chunks: null });
+    expect(parseAsrResponse({ error: "Model is loading" })).toBeNull();
   });
   it("detects word-level chunks and silence hallucinations", () => {
     expect(isWordLevel([{ text: "hi", startMs: 0, endMs: 1 }])).toBe(true);

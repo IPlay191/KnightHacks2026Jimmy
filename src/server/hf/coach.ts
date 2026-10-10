@@ -77,7 +77,15 @@ async function chat(
       body: JSON.stringify(body),
     },
     onAttempt: (a) =>
-      a.failure && log.warn("hf.llm.attempt", { model, attempt: a.attempt, status: a.status, failure: a.failure, latencyMs: a.latencyMs }),
+      a.failure &&
+      log.warn("hf.llm.attempt", {
+        model,
+        attempt: a.attempt,
+        status: a.status,
+        failure: a.failure,
+        latencyMs: a.latencyMs,
+        detail: a.detail,
+      }),
   });
   const parsed = ChatResponse.safeParse(await res.json().catch(() => null));
   if (!parsed.success) throw new UpstreamError("transient", "unexpected chat response shape");

@@ -1,5 +1,5 @@
 {
-  "name": "speech-reviewer",
+  "name": "knightly-speeches",
   "version": "0.1.0",
   "private": true,
   "type": "module",
@@ -22,7 +22,8 @@
     "db:generate": "drizzle-kit generate",
     "db:migrate": "drizzle-kit migrate",
     "db:seed": "tsx --conditions=react-server scripts/seed.ts",
-    "warmup": "tsx --conditions=react-server scripts/warmup.ts"
+    "warmup": "tsx --conditions=react-server scripts/warmup.ts",
+    "diagnose:asr": "tsx --conditions=react-server scripts/diagnose-asr.ts"
   },
   "dependencies": {
     "@gsap/react": "2.1.2",
