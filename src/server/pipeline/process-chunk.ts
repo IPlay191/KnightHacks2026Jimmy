@@ -36,6 +36,8 @@ function upstreamToAppError(err: UpstreamError): AppError {
   switch (err.kind) {
     case "config":
       return new AppError("UPSTREAM_CONFIG");
+    case "quota":
+      return new AppError("UPSTREAM_QUOTA");
     case "bad_input":
       return new AppError("UNSUPPORTED_AUDIO");
     case "timeout":
@@ -133,7 +135,7 @@ export async function processChunk(req: ChunkRequest): Promise<ChunkResponse> {
   } catch (err) {
     const appErr = err instanceof UpstreamError ? upstreamToAppError(err) : new AppError("UPSTREAM_FAILED");
     await markChunkFailed(req.sessionId, req.index, appErr.code).catch(() => undefined);
-    log[appErr.code === "UPSTREAM_CONFIG" ? "error" : "warn"]("chunk.asr_failed", {
+    log[appErr.code === "UPSTREAM_CONFIG" || appErr.code === "UPSTREAM_QUOTA" ? "error" : "warn"]("chunk.asr_failed", {
       sessionId: req.sessionId,
       chunkIndex: req.index,
       code: appErr.code,

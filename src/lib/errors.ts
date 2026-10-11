@@ -19,6 +19,12 @@ export const ERROR_CATALOG = {
   UPSTREAM_TIMEOUT: { status: 504, retryable: true, level: "warn", message: "The AI service took too long. Retry?" },
   UPSTREAM_FAILED: { status: 502, retryable: true, level: "error", message: "The AI service returned an error. Retry?" },
   UPSTREAM_CONFIG: { status: 500, retryable: false, level: "error", message: "The AI service isn't configured correctly." },
+  UPSTREAM_QUOTA: {
+    status: 503,
+    retryable: false,
+    level: "error",
+    message: "The AI service has run out of credits, so transcription is paused. Your recording is still here. Retry once credits are added.",
+  },
   SERVICE_UNAVAILABLE: { status: 503, retryable: true, level: "error", message: "We couldn't save your session. Retry." },
   INTERNAL: { status: 500, retryable: true, level: "error", message: "Something went wrong on our side. Retry." },
 } as const;

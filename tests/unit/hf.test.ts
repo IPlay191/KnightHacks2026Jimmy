@@ -53,6 +53,14 @@ describe("http retry policy", () => {
     expect(classify(404, "", "llm")).toBe("not_found");
     expect(classify(400, "response_format not supported", "llm")).toBe("capability");
     expect(classify(415, "bad audio", "asr")).toBe("bad_input");
+    expect(classify(402, '{"error":"You have no remaining credits."}', "asr")).toBe("quota");
+  });
+  it("does not retry or fall back when credits run out", async () => {
+    const d = deps([json({ error: "You have no remaining credits." }, 402), json({ ok: true })]);
+    await expect(
+      fetchWithRetry({ url: "x", init: {}, kind: "asr", deadline: 100_000, attemptTimeoutMs: 10_000, maxAttempts: 3, deps: d }),
+    ).rejects.toMatchObject({ kind: "quota", status: 402 });
+    expect(d.calls).toBe(1);
   });
   it("honors Retry-After, capped at 8 s", () => {
     expect(parseRetryAfter("3", 0)).toBe(3000);
@@ -193,6 +201,12 @@ describe("generateCoaching chain", () => {
     const r = await generateCoaching(input, { deadline: 200_000, deps: d });
     expect(r.source).toBe("rules");
     expect(d.calls).toBe(3);
+  });
+  it("degrades to rules immediately when credits run out", async () => {
+    const d = deps([json({ error: "You have no remaining credits." }, 402)]);
+    const r = await generateCoaching(input, { deadline: 200_000, deps: d });
+    expect(r.source).toBe("rules");
+    expect(d.calls).toBe(1);
   });
   it("degrades to rules immediately on auth errors", async () => {
     const d = deps([json({}, 403)]);

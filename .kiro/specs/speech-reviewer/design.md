@@ -368,6 +368,7 @@ attempt 1: primary model, response_format=json_schema
 | 503 with "loading" or `estimated_time`, 429, 502, 504, network error, attempt timeout | transient | Exponential backoff `min(8 s, 1 s × 2^n) + jitter(0–250 ms)`, honoring `Retry-After` (capped at 8 s). Max 3 attempts per model, within the deadline. Then try the fallback model once. |
 | 400/422 that mentions `response_format` (LLM only) | capability | Retry once without `response_format`. |
 | 400/415/422 audio decode error (ASR) | bad input | No retry. `UNSUPPORTED_AUDIO`. Should never happen with our WAV, so log at `error`. |
+| 402, or a body saying "no remaining credits" | quota | No retry, no fallback (every model bills the same account). ASR returns `UPSTREAM_QUOTA` (503, offers Retry without re-recording); the LLM path degrades to rules. Logged at `error`. |
 | 401/403 | config | No retry, no fallback. `UPSTREAM_CONFIG`, logged at `error` with a hint to check `HF_TOKEN` scope and gated-model acceptance. LLM path degrades to rules. |
 | 404 or "model not supported" | config | Skip to the fallback model immediately. Log at `error`. |
 | Other 5xx | transient | Same as the first row. |

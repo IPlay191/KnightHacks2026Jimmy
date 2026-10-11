@@ -160,7 +160,9 @@ export async function generateCoaching(
     if (reparsed.ok) return finish(reparsed.value, primary, attempts);
     log.warn("hf.llm.invalid", { model: primary, attempt: attempts, failure: reparsed.failure });
   } catch (err) {
-    if (err instanceof UpstreamError && err.kind === "config") return rules(attempts, `config_${err.status ?? ""}`);
+    if (err instanceof UpstreamError && (err.kind === "config" || err.kind === "quota")) {
+      return rules(attempts, `${err.kind}_${err.status ?? ""}`);
+    }
     log.warn("hf.llm.primary_failed", {
       model: primary,
       attempt: attempts,

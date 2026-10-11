@@ -182,7 +182,8 @@ export function usePipeline(sessionId: string, chunks: PreparedChunk[] | null, o
           stage: "transcribe",
           code: e.code,
           message: e.message,
-          action: e.retryable || e.code === "UPSTREAM_CONFIG" ? "retry" : "record",
+          // Config and credit problems are fixable without re-recording, so offer Retry.
+          action: e.retryable || e.code === "UPSTREAM_CONFIG" || e.code === "UPSTREAM_QUOTA" ? "retry" : "record",
         });
         return false;
       }

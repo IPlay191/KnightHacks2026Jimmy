@@ -10,7 +10,7 @@ import "server-only";
  */
 export const HF_ROUTER = "https://router.huggingface.co";
 
-export type FailureKind = "transient" | "config" | "not_found" | "capability" | "bad_input" | "timeout";
+export type FailureKind = "transient" | "config" | "quota" | "not_found" | "capability" | "bad_input" | "timeout";
 
 export class UpstreamError extends Error {
   readonly kind: FailureKind;
@@ -53,6 +53,11 @@ export function parseRetryAfter(header: string | null, nowMs: number): number | 
 /** Classifies an HTTP failure per the table in design §4.7. */
 export function classify(status: number, bodyText: string, kind: "asr" | "llm"): FailureKind {
   const body = bodyText.toLowerCase();
+  // 402: the HF account has no remaining Inference Providers credits. Retrying or
+  // switching models won't help, since every model bills the same account.
+  if (status === 402 || body.includes("no remaining credits") || body.includes("exceeded your monthly included credits")) {
+    return "quota";
+  }
   if (status === 401 || status === 403) return "config";
   if (status === 404 || body.includes("model not supported") || body.includes("not supported by provider")) {
     return "not_found";

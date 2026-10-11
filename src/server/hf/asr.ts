@@ -210,8 +210,8 @@ export async function transcribeChunk(
     const { body, latencyMs } = await transcribeWith(env.HF_ASR_MODEL, input, opts.deadline, deps, token, 3);
     return toAsrResult(body, input, env.HF_ASR_MODEL, latencyMs);
   } catch (err) {
-    // Auth problems won't be fixed by another model; everything else gets one fallback try.
-    if (!(err instanceof UpstreamError) || err.kind === "config") throw err;
+    // Auth and credit problems won't be fixed by another model; everything else gets one fallback try.
+    if (!(err instanceof UpstreamError) || err.kind === "config" || err.kind === "quota") throw err;
     log.warn("hf.asr.fallback", { model: env.HF_ASR_FALLBACK_MODEL, failure: err.kind, status: err.status });
     const { body, latencyMs } = await transcribeWith(env.HF_ASR_FALLBACK_MODEL, input, opts.deadline, deps, token, 1);
     return toAsrResult(body, input, env.HF_ASR_FALLBACK_MODEL, latencyMs);

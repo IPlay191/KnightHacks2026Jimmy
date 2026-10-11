@@ -37,7 +37,7 @@ export function Hero({ showSample }: { showSample: boolean }) {
           Knightly Speeches · Open-source AI speech coach
         </p>
         <h1 id="hero-title" data-headline className="max-w-3xl text-display-xl text-text">
-          Practice out loud. Get coaching that actually helps.
+          Practice out loud! Get coaching that actually helps you deliver.
         </h1>
         <p data-fade className="max-w-[60ch] text-body-l text-text-secondary">
           Record a practice speech with your camera and mic. In under a minute you&apos;ll see your pace, pauses, filler
