@@ -9,7 +9,9 @@ import { resetEnvCache } from "@/server/env";
 import type { CoachingFeedback } from "@/lib/coaching";
 
 const VALID: CoachingFeedback = {
-  schemaVersion: 1,
+  schemaVersion: 2,
+  contentVerdict: "strong",
+  mainMessage: "Practice matters more than talent.",
   summary: "A clear talk with a strong opening and a direct ask at the end.",
   clarity: { score: 80, rationale: "Concrete and easy to follow." },
   structure: { score: 75, hasClearOpening: true, hasClearClosing: true, rationale: "Clear hook and close." },
@@ -21,7 +23,6 @@ const VALID: CoachingFeedback = {
     { title: "Low one", detail: "Something minor to tidy up.", category: "delivery", priority: "low", evidenceQuote: null, suggestedRewrite: null },
     { title: "High one", detail: "The most important fix to make.", category: "pacing", priority: "high", evidenceQuote: "practice matters more than talent", suggestedRewrite: "Practice beats talent." },
   ],
-  practiceDrill: { title: "Pause drill", instructions: "Record one minute pausing after each key claim.", durationMinutes: 5 },
 };
 
 function deps(responses: (Response | Error)[]): HttpDeps & { calls: number } {
@@ -142,7 +143,9 @@ describe("LLM output parsing", () => {
   });
   it("produces a strict JSON schema with every field required", () => {
     const schema = coachingJsonSchema() as { required: string[]; properties: Record<string, unknown> };
-    expect(schema.required).toEqual(expect.arrayContaining(["summary", "audienceFit", "improvements", "practiceDrill"]));
+    expect(schema.required).toEqual(expect.arrayContaining(["summary", "contentVerdict", "audienceFit", "improvements"]));
+    expect(schema.required).not.toContain("practiceDrill");
+    expect(JSON.stringify(schema)).not.toMatch(/"(pattern|minLength|maxLength|\$schema)"/);
   });
 });
 
@@ -196,11 +199,41 @@ describe("generateCoaching chain", () => {
     expect(r.source).toBe("llm");
     expect(d.calls).toBe(2);
   });
-  it("falls back to the second model, then to rules", async () => {
-    const d = deps([chat("nope"), chat("still nope"), chat("{}")]);
-    const r = await generateCoaching(input, { deadline: 200_000, deps: d });
+  it("tries every model in the chain (with a repair each) before falling back to rules", async () => {
+    const d = deps([chat("nope"), chat("still nope"), chat("{}"), chat("{}"), chat("bad"), chat("bad")]);
+    const r = await generateCoaching(input, { deadline: 400_000, deps: d });
     expect(r.source).toBe("rules");
-    expect(d.calls).toBe(3);
+    expect(d.calls).toBe(6);
+  });
+  it("uses the fallback model when the primary model is refused (403, e.g. gated license)", async () => {
+    const d = deps([json({ error: "Access to model is restricted" }, 403), chat(JSON.stringify(VALID))]);
+    const r = await generateCoaching(input, { deadline: 200_000, deps: d });
+    expect(r).toMatchObject({ source: "llm", model: "meta-llama/Llama-3.1-8B-Instruct" });
+  });
+  it("retries without a schema when the provider rejects it with a generic 400", async () => {
+    const d = deps([json({ error: "Invalid JSON schema keyword" }, 400), chat(JSON.stringify(VALID))]);
+    const r = await generateCoaching(input, { deadline: 200_000, deps: d });
+    expect(r.source).toBe("llm");
+    expect(d.calls).toBe(2);
+  });
+  it("accepts near-valid replies (long text, string scores, numeric IDs)", async () => {
+    const sloppy = {
+      ...VALID,
+      contentVerdict: "Strong",
+      summary: "x ".repeat(400),
+      clarity: { score: "82", rationale: "Clear." + " Very clear.".repeat(60) },
+      fillerReview: { confirmedCandidateIds: [1] },
+      improvements: [...VALID.improvements, { title: "Third", detail: "Another useful fix.", category: "Pace", priority: "HIGH" }],
+    };
+    const parsed = parseCoaching(JSON.stringify(sloppy));
+    expect(parsed.ok).toBe(true);
+    if (parsed.ok) {
+      expect(parsed.value.contentVerdict).toBe("strong");
+      expect(parsed.value.clarity.score).toBe(82);
+      expect(parsed.value.summary.length).toBeLessThanOrEqual(500);
+      expect(parsed.value.fillerReview.confirmedCandidateIds).toEqual(["c1"]);
+      expect(parsed.value.improvements[2]).toMatchObject({ category: "pacing", priority: "high", evidenceQuote: null });
+    }
   });
   it("degrades to rules immediately when credits run out", async () => {
     const d = deps([json({ error: "You have no remaining credits." }, 402)]);
@@ -208,10 +241,10 @@ describe("generateCoaching chain", () => {
     expect(r.source).toBe("rules");
     expect(d.calls).toBe(1);
   });
-  it("degrades to rules immediately on auth errors", async () => {
-    const d = deps([json({}, 403)]);
+  it("degrades to rules immediately on an invalid token (401)", async () => {
+    const d = deps([json({}, 401)]);
     const r = await generateCoaching(input, { deadline: 200_000, deps: d });
-    expect(r.source).toBe("rules");
+    expect(r).toMatchObject({ source: "rules", reason: "config_401" });
     expect(d.calls).toBe(1);
   });
 });

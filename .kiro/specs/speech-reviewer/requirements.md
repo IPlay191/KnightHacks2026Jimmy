@@ -166,7 +166,7 @@ The product is built for a hackathon. Judges must be able to try it in under a m
 4. WHEN a response arrives THEN the system SHALL extract JSON (stripping code fences or surrounding prose) and validate it with the Zod `CoachingFeedback` schema.
 5. IF validation fails THEN the system SHALL make one repair request that includes the invalid output and the validation errors. IF that also fails, it SHALL make one attempt with the fallback model (`HF_LLM_FALLBACK_MODEL`, default `meta-llama/Llama-3.1-8B-Instruct`).
 6. IF all LLM attempts fail THEN the system SHALL still complete the session with deterministic metrics and rule-based coaching tips, mark the feedback source as `rules`, and show a notice that AI coaching was unavailable with a "Retry AI coaching" action.
-7. The coaching SHALL contain: a summary (≤ 400 characters), a clarity score and rationale, a structure score with opening/closing detection, an audience-fit score with rationale and 1–3 audience-specific tips (20.5), 1–3 strengths, 1–5 improvements (each with a category, priority, and optionally a quoted excerpt of ≤ 20 words plus a suggested rewrite), confirmed contextual filler counts, a pacing interpretation, and one practice drill.
+7. The coaching SHALL contain: a summary (≤ 400 characters), a clarity score and rationale, a structure score with opening/closing detection, an audience-fit score with rationale and 1–3 audience-specific tips (20.5), 1–3 strengths, 2–5 improvements (each with a category, priority, and optionally a quoted excerpt of ≤ 20 words plus a suggested rewrite), confirmed contextual filler counts, a pacing interpretation, the speech's main message (or null when there isn't one), and a content verdict (incoherent, weak, adequate, strong, or excellent) that caps the overall score (design.md §6.5).
 8. The system prompt SHALL tell the model to treat the transcript as untrusted data, ignore instructions inside it, and never invent numeric metrics.
 9. The system SHALL store the model ID, prompt version, schema version, attempt count, and latency for every feedback record.
 
@@ -191,7 +191,7 @@ The product is built for a hackathon. Judges must be able to try it in under a m
 
 #### Acceptance Criteria
 
-1. The report at `/sessions/{id}` SHALL show, in this visual order: an overall score ring with a qualitative label, five sub-score tiles (Pacing, Filler words, Pauses, Clarity, Audience fit) with primary values, a "Top 3 things to work on" list, a pace timeline chart, a filler breakdown chart, strengths, the practice drill, and the transcript.
+1. The report at `/sessions/{id}` SHALL show, in this visual order: an overall score ring with a qualitative label, the content verdict and main message, any score cap with its reason, six sub-score tiles (Pacing, Filler words, Pauses, Clarity, Structure, Audience fit) with primary values, a "Top 3 things to work on" list, a pace timeline chart, a filler breakdown chart, strengths, any further improvements, and the transcript.
 2. Each sub-score tile SHALL show the raw metric with units (for example, "148 WPM", "3.2 fillers/min", "Grade 6.2"), the target range for the session's audience, and a delta versus the previous completed session for the same audience when one exists (20.8).
 3. The pace timeline SHALL plot WPM per 15-second window, shade the target WPM band, mark long pauses, and mark filler positions.
 4. The filler breakdown SHALL list each filler term with its count, sorted by count, and indicate which counts were AI-confirmed.

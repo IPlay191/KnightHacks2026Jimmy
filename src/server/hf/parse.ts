@@ -1,4 +1,11 @@
-import { CoachingFeedback } from "@/lib/coaching";
+import {
+  CoachingFeedback,
+  CONTENT_VERDICTS,
+  IMPROVEMENT_CATEGORIES,
+  SCHEMA_VERSION,
+  TEXT_LIMITS,
+  type ContentVerdict,
+} from "@/lib/coaching";
 import { normalizeForMatch } from "@/lib/text";
 
 /**
@@ -68,7 +75,7 @@ export function parseCoaching(raw: string): ParseOutcome {
   } catch (e) {
     return { ok: false, failure: "json_parse", issues: [(e as Error).message.slice(0, 200)], raw };
   }
-  const result = CoachingFeedback.safeParse(data);
+  const result = CoachingFeedback.safeParse(coerceCoaching(data));
   if (!result.success) {
     const issues = result.error.issues
       .slice(0, 20)
@@ -76,6 +83,148 @@ export function parseCoaching(raw: string): ParseOutcome {
     return { ok: false, failure: "schema", issues, raw: candidate };
   }
   return { ok: true, value: result.data };
+}
+
+// ---------------------------------------------------------------------------
+// Lenient coercion. Models often return almost-valid JSON: a string a little
+// too long, a score as "85" or 8.5, a missing optional note, an extra
+// improvement. Rejecting those wastes the whole coaching step, so they're
+// repaired deterministically before strict validation. Structural problems
+// (missing scores, no improvements) still fail and go to the repair prompt.
+// ---------------------------------------------------------------------------
+
+type Json = Record<string, unknown>;
+const isObj = (v: unknown): v is Json => typeof v === "object" && v !== null && !Array.isArray(v);
+
+/** Trims and cuts a string to `max` characters at a word boundary. */
+export function clip(value: unknown, max: number): string | undefined {
+  if (typeof value === "number") value = String(value);
+  if (typeof value !== "string") return undefined;
+  const t = value.replace(/\s+/g, " ").trim();
+  if (t.length <= max) return t;
+  const cut = t.slice(0, max - 1);
+  const space = cut.lastIndexOf(" ");
+  return `${(space > max * 0.6 ? cut.slice(0, space) : cut).replace(/[\s,;:.-]+$/, "")}…`;
+}
+
+function score(value: unknown): number | undefined {
+  const n = typeof value === "string" ? Number.parseFloat(value) : typeof value === "number" ? value : Number.NaN;
+  if (!Number.isFinite(n)) return undefined;
+  // Some models answer on a 0–10 scale; a fractional value at or below 10 is a strong hint.
+  const scaled = n > 0 && n <= 10 && !Number.isInteger(n) ? n * 10 : n;
+  return Math.max(0, Math.min(100, Math.round(scaled)));
+}
+
+function bool(value: unknown): boolean | undefined {
+  if (typeof value === "boolean") return value;
+  if (typeof value === "string") return /^(true|yes|1)$/i.test(value.trim());
+  return undefined;
+}
+
+function nullableText(value: unknown, max: number): string | null {
+  const t = clip(value, max);
+  return t && t.length > 0 && !/^(null|none|n\/a)$/i.test(t) ? t : null;
+}
+
+const CATEGORY_ALIASES: Record<string, (typeof IMPROVEMENT_CATEGORIES)[number]> = {
+  pace: "pacing",
+  speed: "pacing",
+  filler: "fillers",
+  "filler words": "fillers",
+  pause: "pauses",
+  content: "clarity",
+  coherence: "clarity",
+  organization: "structure",
+  engagement: "audience",
+  "audience fit": "audience",
+  audiencefit: "audience",
+  vocabulary: "audience",
+};
+
+function category(value: unknown): (typeof IMPROVEMENT_CATEGORIES)[number] {
+  const v = typeof value === "string" ? value.trim().toLowerCase() : "";
+  if ((IMPROVEMENT_CATEGORIES as readonly string[]).includes(v)) return v as (typeof IMPROVEMENT_CATEGORIES)[number];
+  return CATEGORY_ALIASES[v] ?? "delivery";
+}
+
+function priority(value: unknown): "high" | "medium" | "low" {
+  const v = typeof value === "string" ? value.trim().toLowerCase() : "";
+  return v === "high" || v === "low" ? v : "medium";
+}
+
+/** Derives a verdict from content scores when the model omitted or mangled it. */
+export function verdictFromScores(clarity: number | undefined, structure: number | undefined): ContentVerdict {
+  const vals = [clarity, structure].filter((x): x is number => typeof x === "number");
+  if (!vals.length) return "adequate";
+  const m = Math.min(...vals);
+  if (m < 25) return "incoherent";
+  if (m < 50) return "weak";
+  if (m < 70) return "adequate";
+  if (m < 88) return "strong";
+  return "excellent";
+}
+
+export function coerceCoaching(data: unknown): unknown {
+  if (!isObj(data)) return data;
+  const d = data;
+  const clarity = isObj(d.clarity) ? d.clarity : {};
+  const structure = isObj(d.structure) ? d.structure : {};
+  const fit = isObj(d.audienceFit) ? d.audienceFit : isObj(d.audience_fit) ? d.audience_fit : {};
+  const fr = isObj(d.fillerReview) ? d.fillerReview : {};
+  const clarityScore = score(clarity.score);
+  const structureScore = score(structure.score);
+  const verdictRaw = typeof d.contentVerdict === "string" ? d.contentVerdict.trim().toLowerCase() : "";
+  const contentVerdict = (CONTENT_VERDICTS as readonly string[]).includes(verdictRaw)
+    ? verdictRaw
+    : verdictFromScores(clarityScore, structureScore);
+
+  const tipsRaw = Array.isArray(fit.tips) ? fit.tips : typeof fit.tips === "string" ? [fit.tips] : [];
+  const ids = Array.isArray(fr.confirmedCandidateIds) ? fr.confirmedCandidateIds : [];
+
+  return {
+    schemaVersion: SCHEMA_VERSION,
+    contentVerdict,
+    mainMessage: nullableText(d.mainMessage, TEXT_LIMITS.mainMessage),
+    summary: clip(d.summary, TEXT_LIMITS.summary),
+    clarity: { score: clarityScore, rationale: clip(clarity.rationale, TEXT_LIMITS.rationale) },
+    structure: {
+      score: structureScore,
+      hasClearOpening: bool(structure.hasClearOpening) ?? false,
+      hasClearClosing: bool(structure.hasClearClosing) ?? false,
+      rationale: clip(structure.rationale, TEXT_LIMITS.rationale),
+    },
+    audienceFit: {
+      score: score(fit.score),
+      rationale: clip(fit.rationale, TEXT_LIMITS.rationale),
+      tips: tipsRaw
+        .map((t) => clip(t, TEXT_LIMITS.tip))
+        .filter((t): t is string => Boolean(t && t.length >= 10))
+        .slice(0, 3),
+    },
+    pacingInsight: clip(d.pacingInsight, TEXT_LIMITS.pacingInsight) ?? "See the pace chart for how your speed changed.",
+    fillerReview: {
+      confirmedCandidateIds: ids
+        .map((x) => (typeof x === "number" ? `c${x}` : typeof x === "string" ? x.trim() : ""))
+        .filter((x) => /^c\d{1,3}$/.test(x))
+        .slice(0, 150),
+      note: clip(fr.note, TEXT_LIMITS.note) ?? "",
+    },
+    strengths: (Array.isArray(d.strengths) ? d.strengths : [])
+      .filter(isObj)
+      .map((s) => ({ title: clip(s.title, TEXT_LIMITS.title), detail: clip(s.detail, TEXT_LIMITS.detail) }))
+      .slice(0, 3),
+    improvements: (Array.isArray(d.improvements) ? d.improvements : [])
+      .filter(isObj)
+      .map((i) => ({
+        title: clip(i.title, TEXT_LIMITS.title),
+        detail: clip(i.detail, TEXT_LIMITS.detail),
+        category: category(i.category),
+        priority: priority(i.priority),
+        evidenceQuote: nullableText(i.evidenceQuote, TEXT_LIMITS.quote),
+        suggestedRewrite: nullableText(i.suggestedRewrite, TEXT_LIMITS.rewrite),
+      }))
+      .slice(0, 5),
+  };
 }
 
 const PRIORITY_ORDER = { high: 0, medium: 1, low: 2 } as const;

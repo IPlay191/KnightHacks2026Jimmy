@@ -2,7 +2,7 @@
 
 import { useRouter } from "next/navigation";
 import { useRef, useState } from "react";
-import { ArrowDown, ArrowUp, Bot, Info, Lightbulb, Minus, Quote, RefreshCw, Sparkles, Target, Trash2, Trophy } from "lucide-react";
+import { ArrowDown, ArrowUp, Bot, Info, Lightbulb, Minus, Quote, RefreshCw, Target, Trash2, Trophy } from "lucide-react";
 import { FillerBars } from "@/components/charts/FillerBars";
 import { PaceTimeline } from "@/components/charts/PaceTimeline";
 import { ScoreRing } from "@/components/charts/ScoreRing";
@@ -17,7 +17,7 @@ import { Button } from "@/components/ui/Button";
 import { ConfirmDialog } from "@/components/ui/ConfirmDialog";
 import { useAnnounce } from "@/components/ui/LiveAnnouncer";
 import { AUDIENCE_PROFILES, audienceLabel } from "@/lib/audience";
-import type { Improvement } from "@/lib/coaching";
+import type { ContentVerdict, Improvement } from "@/lib/coaching";
 import { formatDate, formatDurationShort } from "@/lib/format";
 import { scoreLabel } from "@/lib/scoring";
 import { ApiError, deleteSession, retryCoaching } from "@/lib/pipeline/api-client";
@@ -70,18 +70,45 @@ export interface ReportView {
     modelId: string | null;
     payload: {
       summary: string;
+      contentVerdict?: ContentVerdict | null;
+      mainMessage?: string | null;
       clarity: { score: number; rationale: string } | null;
+      structure: { score: number; hasClearOpening: boolean; hasClearClosing: boolean; rationale: string } | null;
       audienceFit: { score: number | null; rationale: string | null; tips: string[] };
       pacingInsight: string;
       strengths: { title: string; detail: string }[];
       improvements: Improvement[];
-      practiceDrill: { title: string; instructions: string; durationMinutes: number };
+      unavailableReason?: string | null;
+      scoreCap?: { cap: number; weighted: number; reason: string } | null;
     };
   };
   segments: { seq: number; startMs: number; endMs: number; text: string }[];
   words: TranscriptWord[];
-  previous: { overall: number; pacing: number; fillers: number; pauses: number; clarity: number | null; audienceFit: number } | null;
+  previous: {
+    overall: number;
+    pacing: number;
+    fillers: number;
+    pauses: number;
+    clarity: number | null;
+    structure: number | null;
+    audienceFit: number;
+  } | null;
 }
+
+const VERDICT_TEXT: Record<ContentVerdict, string> = {
+  incoherent: "Incoherent",
+  weak: "Weak",
+  adequate: "Adequate",
+  strong: "Strong",
+  excellent: "Excellent",
+};
+const VERDICT_TONE: Record<ContentVerdict, "record" | "warning" | "neutral" | "success" | "primary"> = {
+  incoherent: "record",
+  weak: "warning",
+  adequate: "neutral",
+  strong: "success",
+  excellent: "primary",
+};
 
 function DeltaChip({ delta, audience }: { delta: number | null; audience: Audience }) {
   if (delta === null) {
@@ -283,8 +310,29 @@ export function ReportScreen({ report }: { report: ReportView }) {
         </h2>
         <ScoreRing score={sc.overall} />
         <div className="flex max-w-[68ch] flex-col gap-3">
+          {f.payload.contentVerdict ? (
+            <p className="flex flex-wrap items-center gap-2" data-testid="content-verdict">
+              <span className="text-small text-text-secondary">Content:</span>
+              <Badge tone={VERDICT_TONE[f.payload.contentVerdict]}>{VERDICT_TEXT[f.payload.contentVerdict]}</Badge>
+            </p>
+          ) : null}
+          {f.source === "llm" ? (
+            <p className="text-text-secondary">
+              <span className="font-semibold text-text">Main message: </span>
+              {f.payload.mainMessage ?? "The coach couldn't identify a clear main message."}
+            </p>
+          ) : null}
           <p className="text-body-l text-text">{f.payload.summary}</p>
           <p className="text-text-secondary">{f.payload.pacingInsight}</p>
+          {f.payload.scoreCap ? (
+            <p className="flex items-start gap-2 rounded-md border border-border-strong px-3 py-2 text-small text-text-secondary" data-testid="score-cap">
+              <Info aria-hidden="true" size={16} className="mt-0.5 shrink-0" />
+              <span>
+                Score capped at {f.payload.scoreCap.cap} (your category average was {f.payload.scoreCap.weighted}).{" "}
+                {f.payload.scoreCap.reason}
+              </span>
+            </p>
+          ) : null}
           <p className="flex flex-wrap items-center gap-2 text-small text-text-muted">
             <Bot aria-hidden="true" size={16} />
             {f.source === "llm" && f.modelId
@@ -299,8 +347,11 @@ export function ReportScreen({ report }: { report: ReportView }) {
           {f.source === "rules" ? (
             <div className="rounded-md border border-warning px-4 py-3" data-testid="rules-notice">
               <p className="text-small text-warning">
-                AI coaching was unavailable for this session, so these tips come from your delivery numbers.
+                AI coaching was unavailable for this session, so the score covers delivery only and is capped at 60.
               </p>
+              {f.payload.unavailableReason ? (
+                <p className="mt-1 text-small text-text-secondary">Reason: {f.payload.unavailableReason}</p>
+              ) : null}
               {!s.isSample ? (
                 <Button
                   className="mt-3"
@@ -343,7 +394,7 @@ export function ReportScreen({ report }: { report: ReportView }) {
         <h2 id="tiles-heading" className="sr-only">
           Score breakdown
         </h2>
-        <ul className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-5">
+        <ul className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-3">
           <SubScoreTile
             testId="tile-pacing"
             title="Pacing"
@@ -383,6 +434,26 @@ export function ReportScreen({ report }: { report: ReportView }) {
               sc.clarity === null
                 ? "Clarity needs AI coaching, which wasn't available for this session."
                 : f.payload.clarity?.rationale
+            }
+          />
+          <SubScoreTile
+            testId="tile-structure"
+            title="Structure"
+            score={sc.structure}
+            primary={
+              sc.structure !== null && f.payload.structure
+                ? `${f.payload.structure.hasClearOpening ? "Clear opening" : "No clear opening"} · ${
+                    f.payload.structure.hasClearClosing ? "clear close" : "no clear close"
+                  }`
+                : ""
+            }
+            target="70 or higher"
+            delta={d(sc.structure, prev?.structure)}
+            audience={s.audience}
+            note={
+              sc.structure === null
+                ? "Structure needs AI coaching, which wasn't available for this session."
+                : f.payload.structure?.rationale
             }
           />
           <SubScoreTile
@@ -445,31 +516,32 @@ export function ReportScreen({ report }: { report: ReportView }) {
         </Card>
       </div>
 
-      <div className="grid gap-6 lg:grid-cols-2">
-        <Card data-reveal aria-labelledby="strengths-heading">
-          <h2 id="strengths-heading" className="flex items-center gap-2 text-h2">
-            <Trophy aria-hidden="true" className="text-success" /> Strengths
+      <Card data-reveal aria-labelledby="strengths-heading">
+        <h2 id="strengths-heading" className="flex items-center gap-2 text-h2">
+          <Trophy aria-hidden="true" className="text-success" /> Strengths
+        </h2>
+        <ul className="mt-4 grid gap-4 md:grid-cols-3">
+          {f.payload.strengths.map((st) => (
+            <li key={st.title}>
+              <h3 className="font-semibold text-text">{st.title}</h3>
+              <p className="text-text-secondary">{st.detail}</p>
+            </li>
+          ))}
+        </ul>
+      </Card>
+
+      {f.payload.improvements.length > 3 ? (
+        <section aria-labelledby="more-heading" className="flex flex-col gap-4">
+          <h2 id="more-heading" className="text-h2">
+            More to work on
           </h2>
-          <ul className="mt-4 flex flex-col gap-3">
-            {f.payload.strengths.map((st) => (
-              <li key={st.title}>
-                <h3 className="font-semibold text-text">{st.title}</h3>
-                <p className="text-text-secondary">{st.detail}</p>
-              </li>
+          <ol className="grid gap-4 lg:grid-cols-2" start={4}>
+            {f.payload.improvements.slice(3).map((imp, i) => (
+              <ImprovementCard key={`${imp.title}-more-${i}`} imp={imp} rank={i + 4} />
             ))}
-          </ul>
-        </Card>
-        <Card data-reveal aria-labelledby="drill-heading">
-          <h2 id="drill-heading" className="flex items-center gap-2 text-h2">
-            <Sparkles aria-hidden="true" className="text-primary-soft" /> Practice drill
-          </h2>
-          <h3 className="mt-4 font-semibold text-text">
-            {f.payload.practiceDrill.title}{" "}
-            <span className="font-normal text-text-muted">· {f.payload.practiceDrill.durationMinutes} min</span>
-          </h3>
-          <p className="mt-1 text-text-secondary">{f.payload.practiceDrill.instructions}</p>
-        </Card>
-      </div>
+          </ol>
+        </section>
+      ) : null}
 
       <Card aria-label="Replay and transcript">
         <div className="flex flex-col gap-6">

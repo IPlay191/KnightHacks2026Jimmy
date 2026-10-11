@@ -18,7 +18,7 @@ export function TopNav({ showLinks = true }: { showLinks?: boolean }) {
       <div className="mx-auto flex h-16 max-w-[1200px] items-center justify-between gap-4 px-4 sm:px-6">
         <Link
           href="/"
-          aria-label="Knightly Speeches home"
+          aria-label="Knights Address home"
           className="flex items-center gap-2 rounded-md font-display text-lg font-bold text-text"
         >
           <span
@@ -27,7 +27,7 @@ export function TopNav({ showLinks = true }: { showLinks?: boolean }) {
           >
             <ChessKnight size={18} strokeWidth={2.5} />
           </span>
-          <span>Knightly Speeches</span>
+          <span>Knights Address</span>
         </Link>
         {showLinks ? (
           <nav aria-label="Primary">

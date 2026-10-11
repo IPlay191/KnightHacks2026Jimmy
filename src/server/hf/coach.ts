@@ -11,14 +11,42 @@ import { normalizeCoaching, parseCoaching } from "./parse";
 import { buildRepairPrompt, buildUserPrompt, SYSTEM_PROMPT, type PromptInput } from "./prompts";
 
 /**
- * Coaching generation with parse → repair → fallback model → rules
- * (design §4.6, R8.1–8.6, R8.9).
+ * Coaching generation (design §4.6, R8.1–8.6, R8.9). Tries each model in the
+ * chain (primary, fallback, then an ungated safety net), each with one repair
+ * round, before degrading to rule-based tips. Only a missing-credits error
+ * stops the chain early, since every model bills the same account.
  */
-const LLM_ATTEMPT_TIMEOUT_MS = 40_000;
+const LLM_ATTEMPT_TIMEOUT_MS = 75_000;
+/** Ungated open model used as a last resort when gated models are refused. */
+export const SAFETY_NET_MODEL = "Qwen/Qwen2.5-72B-Instruct";
 let cachedSchema: Record<string, unknown> | null = null;
 
+const UNSUPPORTED_SCHEMA_KEYS = new Set([
+  "$schema",
+  "pattern",
+  "minLength",
+  "maxLength",
+  "minItems",
+  "maxItems",
+  "minimum",
+  "maximum",
+  "format",
+]);
+
+/** Strips keywords some providers reject in strict mode. Zod still validates fully. */
+function simplifySchema(node: unknown): unknown {
+  if (Array.isArray(node)) return node.map(simplifySchema);
+  if (!node || typeof node !== "object") return node;
+  const out: Record<string, unknown> = {};
+  for (const [k, v] of Object.entries(node)) {
+    if (UNSUPPORTED_SCHEMA_KEYS.has(k)) continue;
+    out[k] = simplifySchema(v);
+  }
+  return out;
+}
+
 export function coachingJsonSchema(): Record<string, unknown> {
-  cachedSchema ??= z.toJSONSchema(CoachingFeedback, { target: "draft-7" }) as Record<string, unknown>;
+  cachedSchema ??= simplifySchema(z.toJSONSchema(CoachingFeedback, { target: "draft-7" })) as Record<string, unknown>;
   return cachedSchema;
 }
 
@@ -54,8 +82,8 @@ async function chat(
   const body: Record<string, unknown> = {
     model,
     messages,
-    temperature: 0.3,
-    max_tokens: 1800,
+    temperature: 0.2,
+    max_tokens: 1500,
     seed: 7,
   };
   if (useSchema) {
@@ -82,7 +110,7 @@ async function chat(
         model,
         attempt: a.attempt,
         status: a.status,
-        failure: a.failure,
+        failure: `${useSchema ? "schema" : "plain"}:${a.failure}`,
         latencyMs: a.latencyMs,
         detail: a.detail,
       }),
@@ -90,6 +118,11 @@ async function chat(
   const parsed = ChatResponse.safeParse(await res.json().catch(() => null));
   if (!parsed.success) throw new UpstreamError("transient", "unexpected chat response shape");
   return parsed.data.choices[0]?.message.content ?? "";
+}
+
+/** Unique, non-empty model chain: primary, fallback, then the ungated safety net. */
+export function modelChain(primary: string, fallback: string): string[] {
+  return [...new Set([primary, fallback, SAFETY_NET_MODEL].map((m) => m.trim()).filter(Boolean))];
 }
 
 export async function generateCoaching(
@@ -100,13 +133,16 @@ export async function generateCoaching(
   const deps = opts.deps ?? defaultDeps;
   const started = deps.now();
   const candidateIds = new Set(input.candidates.slice(0, 150).map((c) => c.id));
-  const finish = (fb: CoachingFeedback, model: string, attempts: number): CoachResult => ({
-    source: "llm",
-    feedback: normalizeCoaching(fb, { candidateIds, transcript: input.transcriptText }),
-    model,
-    attempts,
-    latencyMs: deps.now() - started,
-  });
+  const finish = (fb: CoachingFeedback, model: string, attempts: number): CoachResult => {
+    log.info("hf.llm.ok", { model, attempt: attempts, latencyMs: deps.now() - started });
+    return {
+      source: "llm",
+      feedback: normalizeCoaching(fb, { candidateIds, transcript: input.transcriptText }),
+      model,
+      attempts,
+      latencyMs: deps.now() - started,
+    };
+  };
   const rules = (attempts: number, reason: string): CoachResult => {
     log.error("hf.llm.degraded_to_rules", { attempt: attempts, failure: reason });
     return { source: "rules", attempts, latencyMs: deps.now() - started, reason };
@@ -128,57 +164,60 @@ export async function generateCoaching(
     { role: "user", content: buildUserPrompt(input) },
   ];
   let attempts = 0;
+  let lastReason = "unavailable";
 
-  /** One logical attempt against a model, with the response_format capability fallback. */
-  const attemptModel = async (model: string, msgs: ChatMessage[], maxAttempts: number) => {
+  /**
+   * One request with structured output; if the provider rejects the schema
+   * (any 400/422), retry the same model once as plain text. The prompt
+   * already describes the shape and the parser is lenient.
+   */
+  const ask = async (model: string, msgs: ChatMessage[], maxAttempts: number): Promise<string> => {
     attempts++;
     try {
-      return { content: await chat(model, msgs, true, opts.deadline, deps, maxAttempts) };
+      return await chat(model, msgs, true, opts.deadline, deps, maxAttempts);
     } catch (err) {
-      if (err instanceof UpstreamError && err.kind === "capability") {
+      if (err instanceof UpstreamError && (err.kind === "capability" || err.kind === "bad_input")) {
         attempts++;
-        return { content: await chat(model, msgs, false, opts.deadline, deps, maxAttempts) };
+        return chat(model, msgs, false, opts.deadline, deps, maxAttempts);
       }
       throw err;
     }
   };
 
-  // Attempt 1 (+ repair) on the primary model.
-  const primary = env.HF_LLM_MODEL;
-  try {
-    const first = await attemptModel(primary, messages, 2);
-    const parsed = parseCoaching(first.content);
-    if (parsed.ok) return finish(parsed.value, primary, attempts);
-    log.warn("hf.llm.invalid", { model: primary, attempt: attempts, failure: parsed.failure });
-    const repairMsgs: ChatMessage[] = [
-      ...messages,
-      { role: "assistant", content: parsed.raw.slice(0, 8000) },
-      { role: "user", content: buildRepairPrompt(parsed.issues) },
-    ];
-    const repaired = await attemptModel(primary, repairMsgs, 1);
-    const reparsed = parseCoaching(repaired.content);
-    if (reparsed.ok) return finish(reparsed.value, primary, attempts);
-    log.warn("hf.llm.invalid", { model: primary, attempt: attempts, failure: reparsed.failure });
-  } catch (err) {
-    if (err instanceof UpstreamError && (err.kind === "config" || err.kind === "quota")) {
-      return rules(attempts, `${err.kind}_${err.status ?? ""}`);
+  for (const [i, model] of modelChain(env.HF_LLM_MODEL, env.HF_LLM_FALLBACK_MODEL).entries()) {
+    if (opts.deadline - deps.now() < 20_000) {
+      lastReason = "deadline";
+      break;
     }
-    log.warn("hf.llm.primary_failed", {
-      model: primary,
-      attempt: attempts,
-      failure: err instanceof UpstreamError ? err.kind : "error",
-      status: err instanceof UpstreamError ? err.status : undefined,
-    });
+    try {
+      const first = await ask(model, messages, i === 0 ? 2 : 1);
+      const parsed = parseCoaching(first);
+      if (parsed.ok) return finish(parsed.value, model, attempts);
+      log.warn("hf.llm.invalid", { model, attempt: attempts, failure: parsed.failure, detail: parsed.issues.slice(0, 3).join("; ") });
+      lastReason = parsed.failure;
+      if (opts.deadline - deps.now() < 25_000) continue;
+      const repaired = await ask(
+        model,
+        [
+          ...messages,
+          { role: "assistant", content: parsed.raw.slice(0, 8000) },
+          { role: "user", content: buildRepairPrompt(parsed.issues) },
+        ],
+        1,
+      );
+      const reparsed = parseCoaching(repaired);
+      if (reparsed.ok) return finish(reparsed.value, model, attempts);
+      log.warn("hf.llm.invalid", { model, attempt: attempts, failure: reparsed.failure, detail: reparsed.issues.slice(0, 3).join("; ") });
+      lastReason = reparsed.failure;
+    } catch (err) {
+      const kind = err instanceof UpstreamError ? err.kind : "error";
+      const status = err instanceof UpstreamError ? err.status : undefined;
+      lastReason = `${kind}${status ? `_${status}` : ""}`;
+      log.warn("hf.llm.model_failed", { model, attempt: attempts, failure: kind, status });
+      // No credits: every model bills the same account. A bad token (401) fails everywhere too.
+      if (kind === "quota" || status === 401) return rules(attempts, lastReason);
+      // 403 is usually a gated model whose license wasn't accepted; the next model may work.
+    }
   }
-
-  // Attempt 3: fallback model, fresh request.
-  const fallback = env.HF_LLM_FALLBACK_MODEL;
-  try {
-    const out = await attemptModel(fallback, messages, 1);
-    const parsed = parseCoaching(out.content);
-    if (parsed.ok) return finish(parsed.value, fallback, attempts);
-    return rules(attempts, parsed.failure);
-  } catch (err) {
-    return rules(attempts, err instanceof UpstreamError ? err.kind : "error");
-  }
+  return rules(attempts, lastReason);
 }

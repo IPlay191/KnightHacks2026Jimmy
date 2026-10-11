@@ -1,11 +1,11 @@
-import type { Improvement, PracticeDrill, StoredFeedback, Strength } from "@/lib/coaching";
+import type { Improvement, StoredFeedback, Strength } from "@/lib/coaching";
 import { SCHEMA_VERSION } from "@/lib/coaching";
 import type { ResolvedProfile } from "@/lib/audience";
 
 /**
  * Deterministic coaching used when every LLM attempt fails (R8.6, design
- * §4.6). Audience-aware (§6.6). Clarity and structure stay null so the overall
- * score renormalizes.
+ * §4.6). Audience-aware (§6.6). Clarity and structure stay null, and the
+ * overall score is capped as delivery-only (design §6.5).
  */
 export interface RulesInput {
   wpm: number;
@@ -14,34 +14,23 @@ export interface RulesInput {
   readingGrade: number;
   scores: { pacing: number; fillers: number; pauses: number; readability: number };
   profile: ResolvedProfile;
+  /** Failure class from the coaching step, for the report notice. */
+  reason: string | null;
 }
 
-const DRILLS: Record<"pacing" | "fillers" | "pauses" | "audience", PracticeDrill> = {
-  pacing: {
-    title: "Metronome minute",
-    instructions:
-      "Set a timer for one minute and read a paragraph aloud, aiming for your target pace. Record it, then compare the WPM on your next report.",
-    durationMinutes: 5,
-  },
-  fillers: {
-    title: "Pause instead of filling",
-    instructions:
-      "Talk about your topic for one minute. Every time you feel an 'um' coming, close your mouth and pause silently instead. Re-record and compare.",
-    durationMinutes: 5,
-  },
-  pauses: {
-    title: "Rehearse the transitions",
-    instructions:
-      "Write the first sentence of each section on a card. Practice moving from card to card without losing your place, then record the full talk again.",
-    durationMinutes: 10,
-  },
-  audience: {
-    title: "Rewrite for your audience",
-    instructions:
-      "Pick your three longest sentences and rewrite each as two shorter ones using everyday words. Say the new versions aloud twice before recording again.",
-    durationMinutes: 10,
-  },
-};
+/** Plain-language explanation for why AI coaching was unavailable. */
+export function describeUnavailable(reason: string | null): string {
+  const r = reason ?? "";
+  if (r.startsWith("quota")) return "The Hugging Face account has no remaining credits.";
+  if (r.startsWith("config")) {
+    return "The AI model refused the request. The Hugging Face token may lack permission, or the model's license hasn't been accepted.";
+  }
+  if (r.includes("timeout") || r === "deadline") return "The AI model took too long to respond.";
+  if (r === "schema" || r === "json_parse") return "The AI model's reply couldn't be understood.";
+  if (r === "not_found") return "The configured AI model isn't available from Hugging Face right now.";
+  if (r === "mock_fail") return "AI coaching was turned off for this test session.";
+  return "The AI service was busy or unavailable.";
+}
 
 export function buildRulesFeedback(input: RulesInput): StoredFeedback {
   const { profile } = input;
@@ -59,7 +48,7 @@ export function buildRulesFeedback(input: RulesInput): StoredFeedback {
       suggestedRewrite: null,
     });
   }
-  if (input.fillersPerMin > 3) {
+  if (input.fillersPerMin > 2) {
     improvements.push({
       title: "Trim filler words",
       detail: `You used about ${input.fillersPerMin.toFixed(1)} filler words per minute. Replace them with a short silent pause.`,
@@ -69,7 +58,7 @@ export function buildRulesFeedback(input: RulesInput): StoredFeedback {
       suggestedRewrite: null,
     });
   }
-  if (input.longPausesPerMin > Math.max(1, profile.longPauseTolerance)) {
+  if (input.longPausesPerMin > profile.longPauseTolerance) {
     improvements.push({
       title: "Smooth out long pauses",
       detail: `You had about ${input.longPausesPerMin.toFixed(1)} long pauses per minute. Rehearse your transitions so you don't lose your place.`,
@@ -95,38 +84,36 @@ export function buildRulesFeedback(input: RulesInput): StoredFeedback {
   if (profile.audience === "teen") tips.push("Open with a hook they can relate to in the first 15 seconds.");
   if (tips.length === 0) tips.push("Close with one clear sentence that tells listeners what to remember.");
 
-  if (improvements.length === 0) {
-    improvements.push({
-      title: "Add a memorable close",
-      detail: "Your delivery numbers look solid. Finish with one sentence that tells listeners what to do or remember.",
-      category: "structure",
-      priority: "low",
-      evidenceQuote: null,
-      suggestedRewrite: null,
-    });
-  }
+  improvements.push({
+    title: "Get your content reviewed",
+    detail:
+      "Delivery numbers can't tell whether your message is clear or well organized. Retry AI coaching to get a review of your actual content.",
+    category: "clarity",
+    priority: improvements.length ? "low" : "high",
+    evidenceQuote: null,
+    suggestedRewrite: null,
+  });
 
-  const ranked = (
-    [
-      ["pacing", input.scores.pacing],
-      ["fillers", input.scores.fillers],
-      ["pauses", input.scores.pauses],
-      ["audience", input.scores.readability],
-    ] as const
-  ).slice();
+  const ranked = [
+    ["pacing", input.scores.pacing],
+    ["fillers", input.scores.fillers],
+    ["pauses", input.scores.pauses],
+    ["audience", input.scores.readability],
+  ] as const;
   const best = [...ranked].sort((a, b) => b[1] - a[1])[0] ?? ranked[0];
-  const worst = [...ranked].sort((a, b) => a[1] - b[1])[0] ?? ranked[0];
   const strengthText: Record<string, Strength> = {
     pacing: { title: "Comfortable pace", detail: `Your pace of ${Math.round(input.wpm)} WPM is easy to follow.` },
     fillers: { title: "Few filler words", detail: "You kept filler words low, which makes you sound confident." },
     pauses: { title: "Steady flow", detail: "You kept long pauses under control and kept the talk moving." },
-    audience: { title: "Clear language", detail: "Your vocabulary suits the audience you chose." },
+    audience: { title: "Plain language", detail: "Your vocabulary level suits the audience you chose." },
   };
+  const reasonText = describeUnavailable(input.reason);
 
   return {
     schemaVersion: SCHEMA_VERSION,
-    summary:
-      "AI coaching wasn't available for this session, so these tips come from your delivery numbers. Retry AI coaching for a fuller review.",
+    contentVerdict: null,
+    mainMessage: null,
+    summary: `AI coaching wasn't available for this session (${reasonText.replace(/\.$/, "").toLowerCase()}), so these tips come from your delivery numbers only. Retry AI coaching for a full review of your content.`,
     clarity: null,
     structure: null,
     audienceFit: { score: null, rationale: null, tips: tips.slice(0, 3) },
@@ -134,6 +121,6 @@ export function buildRulesFeedback(input: RulesInput): StoredFeedback {
     fillerReview: null,
     strengths: [strengthText[best[0]] ?? strengthText.pacing!],
     improvements: improvements.slice(0, 5),
-    practiceDrill: DRILLS[worst[0]],
+    unavailableReason: reasonText,
   };
 }

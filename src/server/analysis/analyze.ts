@@ -1,18 +1,20 @@
-import type { StoredFeedback } from "@/lib/coaching";
+import type { ContentVerdict, StoredFeedback } from "@/lib/coaching";
 import { resolveAudienceProfile, type ResolvedProfile } from "@/lib/audience";
 import {
   audienceFitScore,
+  computeOverall,
   fillersScore,
-  overallScore,
   pacingScore,
   pausesScore,
   SCORING_VERSION,
+  type SubstanceSignals,
 } from "@/lib/scoring";
 import type { Audience, AudienceFitSource, FeedbackSource } from "@/lib/types";
 import { detectFillers, resolveFillers, type FillerDetection, type FillerResolution } from "./fillers";
 import { computeMetrics, type DeliveryMetrics } from "./metrics";
 import { readabilityScore, readingGrade } from "./readability";
 import { buildRulesFeedback } from "./rules-feedback";
+import { lexicalDiversity, repetitionRatio } from "./substance";
 import { assembleTranscript, type AssembledTranscript, type ChunkTranscript } from "./transcript";
 
 /**
@@ -44,6 +46,7 @@ export interface PreparedAnalysis {
   /** Metrics with unambiguous fillers only (what the LLM sees). */
   preliminary: DeliveryMetrics;
   silences: ChunkTranscript["silences"];
+  substance: SubstanceSignals;
 }
 
 export function prepareAnalysis(
@@ -66,7 +69,14 @@ export function prepareAnalysis(
   });
   const profile = resolveAudienceProfile(audience, settings);
   const grade = readingGrade({ segments: transcript.segments.map((s) => s.text) });
-  return { transcript, detection, profile, durationMs, readingGrade: grade, preliminary, silences };
+  const norms = transcript.words.map((w) => w.norm);
+  const substance: SubstanceSignals = {
+    wordCount: transcript.wordCount,
+    activeMs: preliminary.activeMs,
+    lexicalDiversity: lexicalDiversity(norms),
+    repetitionRatio: repetitionRatio(norms),
+  };
+  return { transcript, detection, profile, durationMs, readingGrade: grade, preliminary, silences, substance };
 }
 
 /** Numbers the LLM is allowed to cite (never recomputed by it, R8.8). */
@@ -83,6 +93,8 @@ export function metricsForPrompt(prep: PreparedAnalysis): Record<string, number 
     longest_pause_sec: Math.round(m.longestPauseMs / 100) / 10,
     unambiguous_filler_count: m.fillerCount,
     reading_grade: prep.readingGrade,
+    lexical_diversity: prep.substance.lexicalDiversity,
+    repeated_phrase_ratio: prep.substance.repetitionRatio,
     target_wpm: `${prep.profile.targetMin}-${prep.profile.targetMax}`,
   };
 }
@@ -90,7 +102,12 @@ export function metricsForPrompt(prep: PreparedAnalysis): Record<string, number 
 export interface LlmOutcome {
   source: FeedbackSource;
   /** Present when source = llm. */
-  feedback?: StoredFeedback & { fillerReview: { confirmedCandidateIds: string[]; note: string } };
+  feedback?: StoredFeedback & {
+    fillerReview: { confirmedCandidateIds: string[]; note: string };
+    contentVerdict?: ContentVerdict | null;
+  };
+  /** Why AI coaching was unavailable (source = rules). */
+  reason?: string;
 }
 
 export interface FinalAnalysis {
@@ -136,9 +153,14 @@ export function finalizeAnalysis(prep: PreparedAnalysis, outcome: LlmOutcome): F
   const structure = llm?.structure?.score ?? null;
   const llmFit = llm?.audienceFit.score ?? null;
   const audienceFit = audienceFitScore(readability, llmFit);
-  const overall = overallScore({ pacing, fillers: fillersS, pauses, clarity, structure, audienceFit });
+  const verdict: ContentVerdict | null = llm ? (llm.contentVerdict ?? "adequate") : null;
+  const result = computeOverall({
+    components: { pacing, fillers: fillersS, pauses, clarity, structure, audienceFit },
+    verdict,
+    substance: { ...prep.substance, activeMs: metrics.activeMs },
+  });
 
-  const feedback: StoredFeedback =
+  const base: StoredFeedback =
     llm ??
     buildRulesFeedback({
       wpm: metrics.wpm,
@@ -147,7 +169,12 @@ export function finalizeAnalysis(prep: PreparedAnalysis, outcome: LlmOutcome): F
       readingGrade: prep.readingGrade,
       scores: { pacing, fillers: fillersS, pauses, readability },
       profile: p,
+      reason: outcome.reason ?? null,
     });
+  const feedback: StoredFeedback = {
+    ...base,
+    scoreCap: result.cap !== null ? { cap: result.cap, weighted: result.weighted, reason: result.capReason ?? "" } : null,
+  };
 
   return {
     transcript: prep.transcript,
@@ -157,7 +184,7 @@ export function finalizeAnalysis(prep: PreparedAnalysis, outcome: LlmOutcome): F
     profile: p,
     scores: {
       scoringVersion: SCORING_VERSION,
-      overall,
+      overall: result.overall,
       pacing,
       fillers: fillersS,
       pauses,

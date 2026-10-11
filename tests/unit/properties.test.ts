@@ -236,8 +236,10 @@ describe("P8 scoring", () => {
 });
 
 const coachingArb: fc.Arbitrary<CoachingFeedback> = fc.record({
-  schemaVersion: fc.constant(1 as const),
-  summary: fc.string({ minLength: 20, maxLength: 60 }).filter((x) => x.trim().length >= 20),
+  schemaVersion: fc.constant(2 as const),
+  contentVerdict: fc.constantFrom("incoherent", "weak", "adequate", "strong", "excellent"),
+  mainMessage: fc.oneof(fc.constant(null), fc.constant("Practice beats talent.")),
+  summary: fc.stringMatching(/^[A-Za-z][A-Za-z ,.{}"]{19,80}[a-z.]$/).filter((x) => !/\s\s/.test(x)),
   clarity: fc.record({ score: fc.integer({ min: 0, max: 100 }), rationale: fc.constant("Clear and concrete.") }),
   structure: fc.record({ score: fc.integer({ min: 0, max: 100 }), hasClearOpening: fc.boolean(), hasClearClosing: fc.boolean(), rationale: fc.constant("Has a hook {and} a close.") }),
   audienceFit: fc.record({ score: fc.integer({ min: 0, max: 100 }), rationale: fc.constant("Fits the audience well."), tips: fc.constant(["Add one more question."]) }),
@@ -253,9 +255,8 @@ const coachingArb: fc.Arbitrary<CoachingFeedback> = fc.record({
       evidenceQuote: fc.oneof(fc.constant(null), fc.constantFrom("we build great things", "not in transcript at all", "a b c d e f g h i j k l m n o p q r s t u v")),
       suggestedRewrite: fc.constant(null),
     }),
-    { minLength: 1, maxLength: 5 },
+    { minLength: 2, maxLength: 5 },
   ),
-  practiceDrill: fc.constant({ title: "Drill", instructions: "Practice the opening three times.", durationMinutes: 5 }),
 }) as fc.Arbitrary<CoachingFeedback>;
 
 describe("P9 LLM parsing", () => {

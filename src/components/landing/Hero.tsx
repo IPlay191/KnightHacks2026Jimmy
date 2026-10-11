@@ -34,7 +34,7 @@ export function Hero({ showSample }: { showSample: boolean }) {
       <AuroraBackground />
       <div ref={ref} className="relative z-10 mx-auto flex max-w-[1200px] flex-col items-start gap-6 px-4 pb-20 pt-16 sm:px-6 sm:pt-24">
         <p data-fade className="rounded-full border border-border-strong bg-canvas/60 px-3 py-1 text-small text-text-secondary">
-          Knightly Speeches · Open-source AI speech coach
+          Knights Address · Open-source AI speech coach
         </p>
         <h1 id="hero-title" data-headline className="max-w-3xl text-display-xl text-text">
           Practice out loud! Get coaching that actually helps you deliver.

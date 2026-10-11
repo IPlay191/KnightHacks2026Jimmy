@@ -1,5 +1,4 @@
 import "server-only";
-import type { StoredFeedback } from "@/lib/coaching";
 import { AppError } from "@/server/errors";
 import { log } from "@/server/log";
 import {
@@ -52,9 +51,7 @@ export async function coachAndFinalize(
   );
   const analysis = finalizeAnalysis(
     prep,
-    coach.source === "llm"
-      ? { source: "llm", feedback: coach.feedback as StoredFeedback & { fillerReview: { confirmedCandidateIds: string[]; note: string } } }
-      : { source: "rules" },
+    coach.source === "llm" ? { source: "llm", feedback: coach.feedback } : { source: "rules", reason: coach.reason },
   );
   return { analysis, coach };
 }

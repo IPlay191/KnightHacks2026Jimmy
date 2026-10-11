@@ -438,14 +438,23 @@ All functions are pure, synchronous, and unit-tested. The inputs are the ordered
 
 All inputs that depend on the audience (`targetMin`, `targetMax`, `longPauseTolerance`, `targetGrade`) come from `resolveAudienceProfile(audience, settings)` (§6.6).
 
-- `pacing = clamp(base − variabilityPenalty)`. `base = 100` inside `[targetMin, targetMax]`, otherwise `100 − 2.5 × distanceToBand` (40 WPM off → 0). `variabilityPenalty = clamp(wpm_stddev − 25, 0, 20)`.
-- `fillers = 100 − 12.5 × fillers_per_min` (0/min → 100, 2/min → 75, 8+/min → 0).
-- `pauses = 100 − 25 × max(0, long_pauses_per_min − longPauseTolerance)`.
-- `clarity`, `structure` come from the LLM. They're `null` for rules feedback.
-- `readability = 100` when `reading_grade ≤ targetGrade`, otherwise `100 − 15 × (reading_grade − targetGrade)` (about 6.7 grades over → 0).
-- `audience_fit = round(0.4 × readability + 0.6 × llmAudienceFit)`. With rules feedback, `audience_fit = readability` and `audience_fit_source = 'readability_only'` (R20.6).
-- `overall = Σ(wᵢ·sᵢ)/Σwᵢ` over non-null components, with weights pacing 0.20, fillers 0.20, pauses 0.15, clarity 0.15, structure 0.15, audience fit 0.15.
-- Qualitative label: ≥ 85 "Excellent", ≥ 70 "Strong", ≥ 55 "Developing", otherwise "Needs work".
+`SCORING_VERSION = 2` (stricter; v1 let a fluent but incoherent speech score 99).
+
+- `pacing = clamp(base − variabilityPenalty)`. `base = 100` inside `[targetMin, targetMax]`, otherwise `100 − 3 × distanceToBand` (≈33 WPM off → 0). `variabilityPenalty = clamp(wpm_stddev − 18, 0, 25)`.
+- `fillers = 100 − 15 × fillers_per_min` (2/min → 70, ≈6.7/min → 0).
+- `pauses = 100 − 30 × max(0, long_pauses_per_min − longPauseTolerance)`.
+- `clarity`, `structure` come from the LLM, using anchored score bands in the prompt. They're `null` for rules feedback.
+- `readability = 100` when `reading_grade ≤ targetGrade`, otherwise `100 − 15 × (reading_grade − targetGrade)`.
+- `audience_fit = round(0.3 × readability + 0.7 × llmAudienceFit)`. With rules feedback, `audience_fit = readability` and `audience_fit_source = 'readability_only'` (R20.6).
+- Weighted score `Σ(wᵢ·sᵢ)/Σwᵢ` over non-null components: clarity 0.25, structure 0.20, audience fit 0.15, pacing 0.15, fillers 0.15, pauses 0.10. Content carries 60%.
+- Hard caps (`computeOverall`); the lowest applicable one wins and its reason is shown on the report:
+  - LLM `contentVerdict`: incoherent → 30, weak → 55, adequate → 75, strong → 90, excellent → 100.
+  - Overall ≤ min(clarity, structure) + 20.
+  - AI coaching unavailable (rules feedback) → 60, labelled delivery-only.
+  - Fewer than 40 words → 40. Under 30 s of speech → 70.
+  - Lexical diversity (MATTR over 50-word windows) < 0.35, or > 35% repeated word trigrams → 45 (`substance.ts`).
+  - 95+ only when every category is ≥ 90 (otherwise capped at 94).
+- Qualitative label: ≥ 90 "Excellent", ≥ 75 "Strong", ≥ 60 "Developing", otherwise "Needs work".
 
 ### 6.6 Audience profiles (`audience.ts`, `AUDIENCE_PROFILE_VERSION = 1`, R20)
 

@@ -73,6 +73,7 @@ export interface ReportData {
     fillers: number;
     pauses: number;
     clarity: number | null;
+    structure: number | null;
     audienceFit: number;
     wpm: number;
     fillersPerMin: number;
@@ -198,6 +199,7 @@ export async function getSessionReport(userId: string, sessionId: string): Promi
           fillers: prev.sc.fillers,
           pauses: prev.sc.pauses,
           clarity: prev.sc.clarity,
+          structure: prev.sc.structure,
           audienceFit: prev.sc.audienceFit,
           wpm: prev.m.wpm,
           fillersPerMin: prev.m.fillersPerMin,

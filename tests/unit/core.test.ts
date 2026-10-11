@@ -6,7 +6,8 @@ import { MicCheck } from "@/lib/audio/level";
 import { resampleLinear } from "@/lib/audio/resample";
 import { parseWav, WavError } from "@/server/audio/wav-parse";
 import { signIdentity, verifyIdentity } from "@/server/auth/token";
-import { audienceFitScore, fillersScore, overallScore, pacingScore, pausesScore, scoreLabel } from "@/lib/scoring";
+import { audienceFitScore, computeOverall, fillersScore, overallScore, pacingScore, pausesScore, scoreLabel } from "@/lib/scoring";
+import { lexicalDiversity, repetitionRatio } from "@/server/analysis/substance";
 import { resolveAudienceProfile } from "@/lib/audience";
 import { computeStreak, computeTrend } from "@/lib/progress";
 import { CreateSessionBody, SettingsInput } from "@/lib/validation";
@@ -63,12 +64,12 @@ describe("identity tokens", () => {
 describe("scoring", () => {
   it("applies the documented formulas", () => {
     expect(pacingScore(145, 10, 130, 160)).toBe(100);
-    expect(pacingScore(180, 10, 130, 160)).toBe(50);
-    expect(pacingScore(145, 40, 130, 160)).toBe(85);
-    expect(fillersScore(2)).toBe(75);
-    expect(pausesScore(1.5, 0.5)).toBe(75);
-    expect(pausesScore(1.5, 1.0)).toBe(88);
-    expect(audienceFitScore(100, 50)).toBe(70);
+    expect(pacingScore(180, 10, 130, 160)).toBe(40);
+    expect(pacingScore(145, 40, 130, 160)).toBe(78);
+    expect(fillersScore(2)).toBe(70);
+    expect(pausesScore(1.5, 0.5)).toBe(70);
+    expect(pausesScore(1.5, 1.0)).toBe(85);
+    expect(audienceFitScore(100, 50)).toBe(65);
     expect(audienceFitScore(80, null)).toBe(80);
   });
   it("renormalizes weights when components are missing", () => {
@@ -76,8 +77,55 @@ describe("scoring", () => {
     expect(full).toBe(80);
     const partial = overallScore({ pacing: 100, fillers: 50, pauses: null, clarity: null, structure: null, audienceFit: null });
     expect(partial).toBe(75);
-    expect(scoreLabel(85)).toBe("Excellent");
-    expect(scoreLabel(54)).toBe("Needs work");
+    expect(scoreLabel(90)).toBe("Excellent");
+    expect(scoreLabel(85)).toBe("Strong");
+    expect(scoreLabel(59)).toBe("Needs work");
+  });
+  it("caps the overall score so incoherent or unreviewed speeches can't score high", () => {
+    const perfectDelivery = { pacing: 100, fillers: 100, pauses: 100 };
+    const normal = { wordCount: 250, activeMs: 120_000, lexicalDiversity: 0.6, repetitionRatio: 0.02 };
+    // The reported bug: fluent but incoherent speech scored 99/100.
+    const incoherent = computeOverall({
+      components: { ...perfectDelivery, clarity: 15, structure: 10, audienceFit: 40 },
+      verdict: "incoherent",
+      substance: normal,
+    });
+    expect(incoherent.overall).toBeLessThanOrEqual(30);
+    expect(incoherent.capReason).toBeTruthy();
+    // AI unavailable: delivery alone tops out at 60.
+    const unreviewed = computeOverall({
+      components: { ...perfectDelivery, clarity: null, structure: null, audienceFit: 100 },
+      verdict: null,
+      substance: normal,
+    });
+    expect(unreviewed.overall).toBe(60);
+    // Repeating the same phrase over and over.
+    const repetitive = computeOverall({
+      components: { ...perfectDelivery, clarity: 70, structure: 70, audienceFit: 70 },
+      verdict: "adequate",
+      substance: { ...normal, repetitionRatio: 0.6 },
+    });
+    expect(repetitive.overall).toBeLessThanOrEqual(45);
+    // Very short speech.
+    expect(computeOverall({ components: { ...perfectDelivery, clarity: 90, structure: 90, audienceFit: 90 }, verdict: "excellent", substance: { ...normal, activeMs: 20_000 } }).overall).toBe(70);
+    // A genuinely strong speech isn't penalized.
+    const strong = computeOverall({
+      components: { pacing: 92, fillers: 95, pauses: 100, clarity: 86, structure: 84, audienceFit: 85 },
+      verdict: "strong",
+      substance: normal,
+    });
+    expect(strong.overall).toBeGreaterThanOrEqual(85);
+    expect(strong.overall).toBeLessThanOrEqual(90);
+    // 95+ only when every category is 90+.
+    expect(computeOverall({ components: { pacing: 100, fillers: 100, pauses: 100, clarity: 100, structure: 100, audienceFit: 89 }, verdict: "excellent", substance: normal }).overall).toBe(94);
+  });
+  it("measures lexical diversity and repetition", () => {
+    const repeated = Array.from({ length: 120 }, (_, i) => ["i", "like", "big", "dogs"][i % 4]!);
+    expect(repetitionRatio(repeated)).toBeGreaterThan(0.9);
+    expect(lexicalDiversity(repeated)).toBeLessThan(0.1);
+    const varied = "the quick brown fox jumps over a lazy dog while seven bright students write careful notes about history".split(" ");
+    expect(repetitionRatio(varied)).toBe(0);
+    expect(lexicalDiversity(varied)).toBeGreaterThan(0.9);
   });
   it("resolves audience profiles", () => {
     const settings = { targetWpmMin: 100, targetWpmMax: 120 };

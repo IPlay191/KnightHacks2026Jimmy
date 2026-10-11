@@ -14,6 +14,7 @@ import type { CoachingFeedback } from "@/lib/coaching";
 import type { Audience, Interval, TimedText } from "@/lib/types";
 import { normalizeCoaching } from "@/server/hf/parse";
 import { finalizeAnalysis, prepareAnalysis } from "@/server/analysis/analyze";
+import { verdictFromScores } from "@/server/hf/parse";
 import type { ChunkTranscript } from "@/server/analysis/transcript";
 import { completionBatch } from "@/server/db/queries/completion";
 import { recomputeStatsQuery } from "@/server/db/queries/stats";
@@ -33,7 +34,7 @@ interface SampleDef {
   wpm: number;
   longPauseEvery: number;
   sentences: string[];
-  feedback: Omit<CoachingFeedback, "fillerReview" | "schemaVersion">;
+  feedback: Omit<CoachingFeedback, "fillerReview" | "schemaVersion" | "contentVerdict">;
 }
 
 const PITCH = [
@@ -41,7 +42,7 @@ const PITCH = [
   "Like most people I used to rush through every presentation and hope nobody noticed.",
   "You know that feeling when your heart races and the words just pour out too fast?",
   "Uh that was me at my first hackathon demo and honestly it did not go well.",
-  "So we built Knightly Speeches, a coach that listens to a practice run and gives you feedback.",
+  "So we built Knights Address, a coach that listens to a practice run and gives you feedback.",
   "It measures your pace your pauses and the filler words you use without noticing.",
   "Then an open source language model reads your transcript and coaches you like a mentor would.",
   "Every session is saved so you can actually see yourself getting better over time.",
@@ -87,9 +88,10 @@ const fb = (o: Partial<SampleDef["feedback"]> & Pick<SampleDef["feedback"], "sum
   pacingInsight: "Your pace was steady for most of the talk.",
   strengths: [{ title: "Personal story", detail: "Opening with your own experience makes the message believable." }],
   improvements: [
-    { title: "Pause after key points", detail: "Give listeners a full breath of silence after each main idea.", category: "pauses", priority: "high", evidenceQuote: null, suggestedRewrite: null },
+    { title: "Back up your main claim", detail: "Add one concrete example or number right after you state your main point.", category: "clarity", priority: "high", evidenceQuote: null, suggestedRewrite: null },
+    { title: "Pause after key points", detail: "Give listeners a full breath of silence after each main idea.", category: "pauses", priority: "medium", evidenceQuote: null, suggestedRewrite: null },
   ],
-  practiceDrill: { title: "Pause on purpose", instructions: "Re-record the first minute and pause for a full breath after every key claim.", durationMinutes: 5 },
+  mainMessage: null,
   ...o,
 });
 
@@ -238,8 +240,10 @@ async function main() {
     const quoteSource = def.sentences.find((s) => s.split(" ").length > 8) ?? def.sentences[0]!;
     const quote = quoteSource.split(" ").slice(0, 7).join(" ");
     const raw: CoachingFeedback = {
-      schemaVersion: 1,
+      schemaVersion: 2,
+      contentVerdict: verdictFromScores(def.feedback.clarity.score, def.feedback.structure.score),
       ...def.feedback,
+      mainMessage: def.feedback.mainMessage ?? `${def.title}: ${def.goal}.`,
       improvements: def.feedback.improvements.map((imp, i) => (i === 0 ? { ...imp, evidenceQuote: quote } : imp)),
       fillerReview: { confirmedCandidateIds: confirmed, note: confirmed.length ? "A few hedges like 'like' and 'you know' slipped in." : "" },
     };

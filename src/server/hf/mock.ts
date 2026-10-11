@@ -55,7 +55,9 @@ export function mockCoachingJson(input: {
   const confirmed = input.candidates.filter((c) => c.phrase === "like" || c.phrase === "you know").map((c) => c.id);
   const quote = input.transcript.split(/\s+/).slice(0, 8).join(" ");
   const fb: CoachingFeedback = {
-    schemaVersion: 1,
+    schemaVersion: 2,
+    contentVerdict: "strong",
+    mainMessage: "Regular recorded practice builds speaking confidence faster than talent.",
     summary: "A clear, personal story with a direct ask at the end. Slow the opening slightly and trim a few hedges.",
     clarity: { score: 78, rationale: "Ideas are concrete and easy to follow, with one or two long sentences." },
     structure: {
@@ -90,11 +92,6 @@ export function mockCoachingJson(input: {
         suggestedRewrite: null,
       },
     ],
-    practiceDrill: {
-      title: "Pause on purpose",
-      instructions: "Re-record the first minute and pause for a full breath after every key claim.",
-      durationMinutes: 5,
-    },
   };
   return JSON.stringify(fb);
 }
