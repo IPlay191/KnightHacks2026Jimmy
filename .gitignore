@@ -15,6 +15,8 @@
 /out/
 /build
 
+# MediaPipe WASM runtime, copied from node_modules by scripts/copy-mediapipe.mjs
+/public/mediapipe/wasm/
 # misc
 .DS_Store
 *.pem

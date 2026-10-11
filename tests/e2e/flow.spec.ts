@@ -84,6 +84,53 @@ test("too-short recordings stay in the studio", async ({ page }) => {
   await expect(page).toHaveURL(/\/studio$/);
 });
 
+test("camera backgrounds composite the scene, persist, and record", async ({ page }) => {
+  const errors: string[] = [];
+  page.on("pageerror", (e) => errors.push(e.message));
+  page.on("console", (m) => {
+    if (m.type() === "error" && /Content Security Policy|wasm|mediapipe/i.test(m.text())) errors.push(m.text());
+  });
+  await startAsGuest(page);
+  await reachReady(page);
+
+  await page.getByTestId("background-office").click();
+  await expect(page.getByTestId("background-office")).toHaveAttribute("aria-checked", "true");
+  const canvas = page.getByTestId("background-canvas");
+  await expect(canvas).toHaveAttribute("data-status", "on", { timeout: 45_000 });
+  await expect(page.getByRole("img", { name: /Office background/ })).toBeVisible();
+  // A painted frame: the canvas matches the camera size and its corner shows the scene, not transparency.
+  await expect
+    .poll(
+      () =>
+        canvas.evaluate((el: HTMLCanvasElement) => {
+          const ctx = el.getContext("2d");
+          if (!ctx || el.width < 100) return 0;
+          return ctx.getImageData(4, 4, 1, 1).data[3];
+        }),
+      { timeout: 10_000 },
+    )
+    .toBe(255);
+
+  await page.getByTestId("background-stage").click();
+  await expect(page.getByRole("img", { name: /Stage background/ })).toBeVisible({ timeout: 20_000 });
+  expect(await axe(page)).toEqual([]);
+
+  // The composited track feeds MediaRecorder; a short take must still stop cleanly.
+  await page.getByTestId("record-control").click();
+  await expect(page.getByTestId("recording-badge")).toBeVisible({ timeout: 10_000 });
+  await expect(page.getByTestId("background-classroom")).toBeDisabled();
+  await page.waitForTimeout(2_000);
+  await page.getByTestId("record-control").click();
+  await expect(page.getByTestId("too-short")).toBeVisible({ timeout: 15_000 });
+
+  await page.reload();
+  await reachReady(page);
+  await expect(page.getByTestId("background-stage")).toHaveAttribute("aria-checked", "true");
+  await page.getByTestId("background-none").click();
+  await expect(page.getByTestId("background-canvas")).toHaveCount(0);
+  expect(errors).toEqual([]);
+});
+
 test("rules fallback shows the notice and retry action", async ({ page }) => {
   await startAsGuest(page);
   await reachReady(page);

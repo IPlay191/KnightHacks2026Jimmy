@@ -8,8 +8,8 @@
   },
   "packageManager": "pnpm@12.11.2",
   "scripts": {
-    "dev": "next dev",
-    "build": "next build",
+    "dev": "node scripts/copy-mediapipe.mjs && next dev",
+    "build": "node scripts/copy-mediapipe.mjs && next build",
     "start": "next start",
     "lint": "eslint",
     "typecheck": "tsc --noEmit",
@@ -27,6 +27,7 @@
   },
   "dependencies": {
     "@gsap/react": "2.1.2",
+    "@mediapipe/tasks-vision": "1.1.0",
     "@neondatabase/serverless": "1.2.0",
     "d3-scale": "4.0.2",
     "d3-shape": "3.2.0",

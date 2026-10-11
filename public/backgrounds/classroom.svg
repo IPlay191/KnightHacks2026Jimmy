@@ -1,0 +1,122 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1280" height="720" viewBox="0 0 1280 720">
+  <defs>
+    <linearGradient id="wall" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#eeead9"/>
+      <stop offset="1" stop-color="#dcd5bf"/>
+    </linearGradient>
+    <linearGradient id="board" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#37604f"/>
+      <stop offset="1" stop-color="#284638"/>
+    </linearGradient>
+    <linearGradient id="floor" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#cdb893"/>
+      <stop offset="1" stop-color="#b19a73"/>
+    </linearGradient>
+    <linearGradient id="desk" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#d4a66c"/>
+      <stop offset="1" stop-color="#b98a52"/>
+    </linearGradient>
+    <linearGradient id="light" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#fffef4" stop-opacity=".7"/>
+      <stop offset="1" stop-color="#fffef4" stop-opacity="0"/>
+    </linearGradient>
+    <radialGradient id="vignette" cx=".5" cy=".45" r=".78">
+      <stop offset=".62" stop-color="#000" stop-opacity="0"/>
+      <stop offset="1" stop-color="#000" stop-opacity=".34"/>
+    </radialGradient>
+    <filter id="dof" x="-2%" y="-2%" width="104%" height="104%">
+      <feGaussianBlur stdDeviation="1.6"/>
+    </filter>
+  </defs>
+
+  <rect width="1280" height="720" fill="#dcd5bf"/>
+  <g filter="url(#dof)">
+    <rect width="1280" height="720" fill="url(#wall)"/>
+
+    <!-- Ceiling lights -->
+    <rect x="200" y="0" width="320" height="16" fill="#fbfbf2"/>
+    <rect x="760" y="0" width="320" height="16" fill="#fbfbf2"/>
+    <rect x="160" y="16" width="400" height="80" fill="url(#light)"/>
+    <rect x="720" y="16" width="400" height="80" fill="url(#light)"/>
+
+    <!-- Chalkboard -->
+    <rect x="150" y="100" width="980" height="350" rx="6" fill="#7b5b3b"/>
+    <rect x="166" y="116" width="948" height="318" fill="url(#board)"/>
+    <g fill="#ffffff" opacity=".05">
+      <ellipse cx="420" cy="300" rx="190" ry="60"/>
+      <ellipse cx="900" cy="200" rx="160" ry="50"/>
+    </g>
+    <g fill="#eef3ea" opacity=".88" font-family="'Segoe Print','Chalkboard SE','Comic Sans MS',cursive">
+      <text x="206" y="176" font-size="36">Today: Public Speaking</text>
+      <text x="214" y="240" font-size="26">1. Hook your audience</text>
+      <text x="214" y="286" font-size="26">2. One clear message</text>
+      <text x="214" y="332" font-size="26">3. Close with an ask</text>
+    </g>
+    <path d="M206 190 C330 184 470 194 600 186" stroke="#eef3ea" stroke-width="3" fill="none" opacity=".8"/>
+    <g stroke="#eef3ea" stroke-width="3" fill="none" opacity=".8" stroke-linecap="round">
+      <path d="M880 390 V170 M880 390 H1080"/>
+      <path d="M910 390 V320 H945 V390 M965 390 V270 H1000 V390 M1020 390 V210 H1055 V390"/>
+      <path d="M900 300 C950 280 990 230 1060 190 M1046 186 L1062 189 L1056 204"/>
+    </g>
+    <g fill="#f4d35e" opacity=".85">
+      <path d="M1084 140 l6 14 15 1 -11 10 4 15 -14 -8 -14 8 4 -15 -11 -10 15 -1 z"/>
+    </g>
+
+    <!-- Chalk tray -->
+    <rect x="150" y="448" width="980" height="14" rx="3" fill="#8e6c49"/>
+    <rect x="300" y="440" width="40" height="8" rx="3" fill="#f6f6f0"/>
+    <rect x="352" y="442" width="28" height="6" rx="3" fill="#f7cfd7"/>
+    <rect x="900" y="432" width="70" height="16" rx="3" fill="#3a3a44"/>
+    <rect x="900" y="432" width="70" height="6" rx="2" fill="#c9c3b4"/>
+
+    <!-- Clock -->
+    <circle cx="1206" cy="154" r="50" fill="#fdfcf8" stroke="#33343a" stroke-width="7"/>
+    <g stroke="#33343a" stroke-width="4" stroke-linecap="round">
+      <path d="M1206 112 V122 M1206 186 V196 M1164 154 H1174 M1238 154 H1248"/>
+      <path d="M1206 154 L1206 126" stroke-width="5"/>
+      <path d="M1206 154 L1226 166"/>
+    </g>
+    <circle cx="1206" cy="154" r="4" fill="#c0392b"/>
+
+    <!-- Poster -->
+    <rect x="28" y="130" width="102" height="140" fill="#f8f3e6" stroke="#c8bfa8" stroke-width="3"/>
+    <circle cx="79" cy="182" r="30" fill="#7fb3d5"/>
+    <path d="M60 172 C70 160 82 168 88 176 C96 186 90 196 80 198 C70 200 58 190 60 172 Z" fill="#6fae6a"/>
+    <rect x="44" y="226" width="70" height="8" rx="4" fill="#c0392b" opacity=".75"/>
+    <rect x="44" y="242" width="52" height="8" rx="4" fill="#33343a" opacity=".45"/>
+
+    <!-- Wainscot and floor -->
+    <rect y="520" width="1280" height="84" fill="#a8bfad"/>
+    <rect y="516" width="1280" height="8" fill="#f2efe4"/>
+    <rect y="600" width="1280" height="120" fill="url(#floor)"/>
+    <g stroke="#9c8562" stroke-width="2" opacity=".5">
+      <path d="M0 640 H1280 M0 690 H1280"/>
+      <path d="M160 600 L120 720 M400 600 L380 720 M640 600 V720 M880 600 L900 720 M1120 600 L1160 720"/>
+    </g>
+
+    <!-- Student desks and chairs -->
+    <g fill="#3d6b9a">
+      <rect x="150" y="510" width="130" height="50" rx="8"/>
+      <rect x="1000" y="510" width="130" height="50" rx="8"/>
+      <rect x="70" y="560" width="170" height="44" rx="8"/>
+      <rect x="1040" y="560" width="170" height="44" rx="8"/>
+    </g>
+    <g stroke="#6b6f78" stroke-width="6">
+      <path d="M130 586 V640 M310 586 V640 M970 586 V640 M1150 586 V640"/>
+      <path d="M40 650 V720 M340 650 V720 M930 650 V720 M1240 650 V720"/>
+    </g>
+    <path d="M118 560 H322 L338 586 H102 Z" fill="url(#desk)"/>
+    <path d="M958 560 H1162 L1178 586 H942 Z" fill="url(#desk)"/>
+    <path d="M30 604 H350 L376 650 H4 Z" fill="url(#desk)"/>
+    <path d="M930 604 H1250 L1276 650 H904 Z" fill="url(#desk)"/>
+    <g fill="#9a6f3e">
+      <rect x="102" y="586" width="236" height="6"/>
+      <rect x="942" y="586" width="236" height="6"/>
+      <rect x="4" y="650" width="372" height="8"/>
+      <rect x="904" y="650" width="372" height="8"/>
+    </g>
+    <rect x="60" y="612" width="90" height="20" rx="2" fill="#f4f1e8" transform="rotate(-4 105 622)"/>
+    <rect x="1140" y="612" width="60" height="26" rx="2" fill="#c0392b" opacity=".85"/>
+  </g>
+  <rect width="1280" height="720" fill="url(#vignette)"/>
+</svg>

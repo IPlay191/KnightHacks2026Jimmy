@@ -10,7 +10,8 @@ export function proxy(request: NextRequest) {
   const csp = [
     "default-src 'self'",
     // No 'strict-dynamic': it would disable 'self' and block the same-origin AudioWorklet module.
-    `script-src 'self' 'nonce-${nonce}'${isDev ? " 'unsafe-eval'" : ""}`,
+    // 'wasm-unsafe-eval' lets the same-origin MediaPipe WASM (camera backgrounds) compile; it doesn't allow JS eval.
+    `script-src 'self' 'nonce-${nonce}' 'wasm-unsafe-eval'${isDev ? " 'unsafe-eval'" : ""}`,
     // Inline style attributes are needed for React style props and GSAP-set transforms.
     "style-src 'self' 'unsafe-inline'",
     "img-src 'self' blob: data:",
@@ -38,7 +39,7 @@ export function proxy(request: NextRequest) {
 export const config = {
   matcher: [
     {
-      source: "/((?!api|_next/static|_next/image|favicon.ico|worklets/).*)",
+      source: "/((?!api|_next/static|_next/image|favicon.ico|worklets/|mediapipe/|backgrounds/).*)",
       missing: [
         { type: "header", key: "next-router-prefetch" },
         { type: "header", key: "purpose", value: "prefetch" },

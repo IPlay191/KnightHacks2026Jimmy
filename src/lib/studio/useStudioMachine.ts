@@ -44,10 +44,12 @@ interface Options {
   getDetails: () => SpeechDetails;
   onSubmitted: (result: SubmittedRecording) => void;
   onNotice?: (message: string) => void;
+  /** Composited camera track (virtual background) to record instead of the raw camera. */
+  getVideoTrack?: () => MediaStreamTrack | null;
 }
 
 /** Side-effect host for the pure studio machine (design §10.4–10.5). */
-export function useStudioMachine({ getDetails, onSubmitted, onNotice }: Options) {
+export function useStudioMachine({ getDetails, onSubmitted, onNotice, getVideoTrack }: Options) {
   const [state, dispatch] = useReducer(transition, { kind: "checking" } as StudioState);
   const stateRef = useRef(state);
   useEffect(() => {
@@ -67,10 +69,10 @@ export function useStudioMachine({ getDetails, onSubmitted, onNotice }: Options)
   const videoChunksRef = useRef<Blob[]>([]);
   const preparedRef = useRef<PreparedRecording | null>(null);
   const videoUrlRef = useRef<string | null>(null);
-  const callbacks = useRef({ getDetails, onSubmitted, onNotice });
+  const callbacks = useRef({ getDetails, onSubmitted, onNotice, getVideoTrack });
   useEffect(() => {
-    callbacks.current = { getDetails, onSubmitted, onNotice };
-  }, [getDetails, onSubmitted, onNotice]);
+    callbacks.current = { getDetails, onSubmitted, onNotice, getVideoTrack };
+  }, [getDetails, onSubmitted, onNotice, getVideoTrack]);
 
   const releaseMedia = useCallback(async () => {
     stopStream(streamRef.current);
@@ -180,7 +182,11 @@ export function useStudioMachine({ getDetails, onSubmitted, onNotice }: Options)
       const mime = s.getVideoTracks().length ? pickVideoMime() : undefined;
       if (mime) {
         try {
-          const rec = new MediaRecorder(s, { mimeType: mime, videoBitsPerSecond: 1_200_000 });
+          // With a virtual background, record the composited canvas track plus the real mic.
+          const composited = callbacks.current.getVideoTrack?.() ?? null;
+          const source =
+            composited && composited.readyState === "live" ? new MediaStream([composited, ...s.getAudioTracks()]) : s;
+          const rec = new MediaRecorder(source, { mimeType: mime, videoBitsPerSecond: 1_200_000 });
           rec.ondataavailable = (e) => {
             if (e.data.size > 0) videoChunksRef.current.push(e.data);
           };

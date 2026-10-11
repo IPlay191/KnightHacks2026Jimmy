@@ -1,0 +1,105 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1280" height="720" viewBox="0 0 1280 720">
+  <defs>
+    <linearGradient id="backdrop" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#120a1c"/>
+      <stop offset="1" stop-color="#2d1838"/>
+    </linearGradient>
+    <linearGradient id="fold" gradientUnits="userSpaceOnUse" x1="0" y1="0" x2="56" y2="0" spreadMethod="repeat">
+      <stop offset="0" stop-color="#4a0910"/>
+      <stop offset=".28" stop-color="#9e1a2c"/>
+      <stop offset=".5" stop-color="#c52b3e"/>
+      <stop offset=".75" stop-color="#8a1626"/>
+      <stop offset="1" stop-color="#4a0910"/>
+    </linearGradient>
+    <linearGradient id="valanceFold" gradientUnits="userSpaceOnUse" x1="0" y1="0" x2="40" y2="0" spreadMethod="repeat">
+      <stop offset="0" stop-color="#5c0c16"/>
+      <stop offset=".5" stop-color="#b42336"/>
+      <stop offset="1" stop-color="#5c0c16"/>
+    </linearGradient>
+    <linearGradient id="drapeShadeL" x1="0" y1="0" x2="1" y2="0">
+      <stop offset="0" stop-color="#000" stop-opacity=".55"/>
+      <stop offset="1" stop-color="#000" stop-opacity="0"/>
+    </linearGradient>
+    <linearGradient id="drapeShadeR" x1="1" y1="0" x2="0" y2="0">
+      <stop offset="0" stop-color="#000" stop-opacity=".55"/>
+      <stop offset="1" stop-color="#000" stop-opacity="0"/>
+    </linearGradient>
+    <linearGradient id="floor" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#6e4628"/>
+      <stop offset="1" stop-color="#3b2414"/>
+    </linearGradient>
+    <linearGradient id="beam" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#fff6e0" stop-opacity=".42"/>
+      <stop offset="1" stop-color="#fff6e0" stop-opacity=".06"/>
+    </linearGradient>
+    <linearGradient id="beamViolet" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#9b7bff" stop-opacity=".35"/>
+      <stop offset="1" stop-color="#9b7bff" stop-opacity="0"/>
+    </linearGradient>
+    <linearGradient id="beamTeal" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#4fd1c5" stop-opacity=".3"/>
+      <stop offset="1" stop-color="#4fd1c5" stop-opacity="0"/>
+    </linearGradient>
+    <radialGradient id="pool" cx=".5" cy=".5" r=".5">
+      <stop offset="0" stop-color="#fff3d6" stop-opacity=".55"/>
+      <stop offset="1" stop-color="#fff3d6" stop-opacity="0"/>
+    </radialGradient>
+    <radialGradient id="halo" cx=".5" cy=".5" r=".5">
+      <stop offset="0" stop-color="#ffe6b0" stop-opacity=".9"/>
+      <stop offset="1" stop-color="#ffe6b0" stop-opacity="0"/>
+    </radialGradient>
+    <radialGradient id="vignette" cx=".5" cy=".45" r=".78">
+      <stop offset=".55" stop-color="#000" stop-opacity="0"/>
+      <stop offset="1" stop-color="#000" stop-opacity=".5"/>
+    </radialGradient>
+    <filter id="dof" x="-2%" y="-2%" width="104%" height="104%">
+      <feGaussianBlur stdDeviation="1.4"/>
+    </filter>
+  </defs>
+
+  <rect width="1280" height="720" fill="#1a0f22"/>
+  <g filter="url(#dof)">
+    <rect width="1280" height="720" fill="url(#backdrop)"/>
+    <g stroke="#ffffff" stroke-opacity=".035" stroke-width="2">
+      <path d="M360 0 V600 M480 0 V600 M600 0 V600 M720 0 V600 M840 0 V600 M960 0 V600"/>
+    </g>
+
+    <!-- Colored wash beams and the main spotlight -->
+    <polygon points="300,0 360,0 720,600 420,600" fill="url(#beamViolet)"/>
+    <polygon points="920,0 980,0 860,600 560,600" fill="url(#beamTeal)"/>
+    <polygon points="580,0 700,0 920,640 360,640" fill="url(#beam)"/>
+
+    <!-- Stage floor -->
+    <rect y="600" width="1280" height="120" fill="url(#floor)"/>
+    <path stroke="#24150b" stroke-opacity=".55" stroke-width="2" fill="none"
+      d="M40 600 L-310 720 M100 600 L-215 720 M160 600 L-120 720 M220 600 L-25 720 M280 600 L70 720 M340 600 L165 720 M400 600 L260 720 M460 600 L355 720 M520 600 L450 720 M580 600 L545 720 M640 600 L640 720 M700 600 L735 720 M760 600 L830 720 M820 600 L925 720 M880 600 L1020 720 M940 600 L1115 720 M1000 600 L1210 720 M1060 600 L1305 720 M1120 600 L1400 720 M1180 600 L1495 720 M1240 600 L1590 720"/>
+    <path d="M0 640 H1280 M0 684 H1280" stroke="#24150b" stroke-opacity=".35" stroke-width="2"/>
+    <ellipse cx="640" cy="652" rx="340" ry="56" fill="url(#pool)"/>
+
+    <!-- Curtains -->
+    <path d="M0 0 H252 C236 200 262 420 214 612 H0 Z" fill="url(#fold)"/>
+    <path d="M0 0 H252 C236 200 262 420 214 612 H0 Z" fill="url(#drapeShadeR)" opacity=".7"/>
+    <path d="M1280 0 H1028 C1044 200 1018 420 1066 612 H1280 Z" fill="url(#fold)"/>
+    <path d="M1280 0 H1028 C1044 200 1018 420 1066 612 H1280 Z" fill="url(#drapeShadeL)" opacity=".7"/>
+    <path d="M0 0 H1280 V70 Q1240 112 1200 70 Q1160 112 1120 70 Q1080 112 1040 70 Q1000 112 960 70 Q920 112 880 70 Q840 112 800 70 Q760 112 720 70 Q680 112 640 70 Q600 112 560 70 Q520 112 480 70 Q440 112 400 70 Q360 112 320 70 Q280 112 240 70 Q200 112 160 70 Q120 112 80 70 Q40 112 0 70 Z" fill="url(#valanceFold)"/>
+    <path d="M1280 70 Q1240 112 1200 70 Q1160 112 1120 70 Q1080 112 1040 70 Q1000 112 960 70 Q920 112 880 70 Q840 112 800 70 Q760 112 720 70 Q680 112 640 70 Q600 112 560 70 Q520 112 480 70 Q440 112 400 70 Q360 112 320 70 Q280 112 240 70 Q200 112 160 70 Q120 112 80 70 Q40 112 0 70" fill="none" stroke="#d8ad52" stroke-width="6"/>
+
+    <!-- Stage lip and footlights -->
+    <rect y="700" width="1280" height="20" fill="#1e120a"/>
+    <g fill="url(#halo)">
+      <circle cx="160" cy="702" r="30"/>
+      <circle cx="400" cy="702" r="30"/>
+      <circle cx="640" cy="702" r="30"/>
+      <circle cx="880" cy="702" r="30"/>
+      <circle cx="1120" cy="702" r="30"/>
+    </g>
+    <g fill="#fff0c8">
+      <circle cx="160" cy="704" r="5"/>
+      <circle cx="400" cy="704" r="5"/>
+      <circle cx="640" cy="704" r="5"/>
+      <circle cx="880" cy="704" r="5"/>
+      <circle cx="1120" cy="704" r="5"/>
+    </g>
+  </g>
+  <rect width="1280" height="720" fill="url(#vignette)"/>
+</svg>

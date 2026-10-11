@@ -15,6 +15,9 @@ import { dur, ease } from "@/components/motion/tokens";
 import { formatDurationWords } from "@/lib/format";
 import { MAX_RECORDING_MS, MIN_RECORDING_MS, WARNING_MS, type StudioState } from "@/lib/studio/machine";
 import { useStudioMachine, type SpeechDetails } from "@/lib/studio/useStudioMachine";
+import { BACKGROUNDS } from "@/lib/studio/backgrounds";
+import { useCameraBackground } from "@/lib/studio/useCameraBackground";
+import { BackgroundPicker } from "./BackgroundPicker";
 import type { Audience } from "@/lib/types";
 import { CameraPreview } from "./CameraPreview";
 import { Countdown } from "./Countdown";
@@ -46,6 +49,7 @@ export function StudioScreen({ defaultAudience }: { defaultAudience: Audience })
     detailsRef.current = details;
   }, [details]);
 
+  const bgTrackRef = useRef<MediaStreamTrack | null>(null);
   const { state, actions, stream, analyser, devices, prefs, elapsed, warning } = useStudioMachine({
     getDetails: () => detailsRef.current,
     onSubmitted: ({ sessionId, recording, videoUrl }) => {
@@ -53,7 +57,13 @@ export function StudioScreen({ defaultAudience }: { defaultAudience: Audience })
       router.push(`/sessions/${sessionId}/processing`);
     },
     onNotice: (m) => announce(m),
+    getVideoTrack: () => bgTrackRef.current,
   });
+  const stateAudioOnly = "audioOnly" in state ? state.audioOnly : false;
+  const bg = useCameraBackground(stream, !stateAudioOnly);
+  useEffect(() => {
+    bgTrackRef.current = bg.track;
+  }, [bg.track]);
 
   const headingRef = useRef<HTMLHeadingElement>(null);
   const controlRef = useRef<HTMLButtonElement>(null);
@@ -184,7 +194,13 @@ export function StudioScreen({ defaultAudience }: { defaultAudience: Audience })
           </h2>
           <Card className="relative overflow-hidden p-3 sm:p-4">
             <div className="relative">
-              <CameraPreview stream={stream} audioOnly={audioOnly} />
+              <CameraPreview
+                stream={stream}
+                audioOnly={audioOnly}
+                backgroundStatus={bg.status}
+                backgroundLabel={BACKGROUNDS[bg.background].label}
+                attachBackground={bg.attachPreview}
+              />
               {state.kind === "countdown" ? <Countdown remaining={state.remaining} /> : null}
               {live ? (
                 <div className="absolute left-3 top-3 flex flex-wrap items-center gap-2">
@@ -293,6 +309,22 @@ export function StudioScreen({ defaultAudience }: { defaultAudience: Audience })
               />
             </div>
           </Card>
+          {!audioOnly ? (
+            <Card>
+              <h2 className="text-h3">Background</h2>
+              <div className="mt-3">
+                <BackgroundPicker
+                  value={bg.background}
+                  onChange={(id) => {
+                    bg.setBackground(id);
+                    announce(id === "none" ? "Background removed." : `${BACKGROUNDS[id].label} background selected.`);
+                  }}
+                  disabled={state.kind !== "ready"}
+                  status={bg.status}
+                />
+              </div>
+            </Card>
+          ) : null}
           <Card>
             <h2 className="text-h3">Tips</h2>
             <ul className="mt-3 list-disc space-y-1 pl-5 text-small text-text-secondary">
