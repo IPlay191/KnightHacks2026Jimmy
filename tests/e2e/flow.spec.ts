@@ -111,6 +111,9 @@ test("camera backgrounds composite the scene, persist, and record", async ({ pag
     )
     .toBe(255);
 
+  await page.getByTestId("background-knighthacks").click();
+  await expect(page.getByRole("img", { name: /Knight Hacks background/ })).toBeVisible({ timeout: 20_000 });
+
   await page.getByTestId("background-stage").click();
   await expect(page.getByRole("img", { name: /Stage background/ })).toBeVisible({ timeout: 20_000 });
   expect(await axe(page)).toEqual([]);

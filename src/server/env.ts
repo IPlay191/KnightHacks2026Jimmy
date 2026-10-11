@@ -29,6 +29,8 @@ const EnvSchema = z
       .string()
       .optional()
       .transform((v) => v === "1" || v === "true"),
+    /** Guest profiles one IP may create per hour. E2E raises it; production keeps the default. */
+    GUEST_LIMIT_PER_HOUR: z.coerce.number().int().min(1).max(10_000).default(10),
   })
   .superRefine((env, ctx) => {
     if (env.HF_MOCK && env.VERCEL_ENV === "production") {

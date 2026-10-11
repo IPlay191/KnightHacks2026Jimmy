@@ -14,8 +14,6 @@ export interface GuestActionState {
   error: string | null;
 }
 
-const GUEST_LIMIT_PER_HOUR = 10;
-
 /**
  * Creates (or reuses) a guest profile, optionally cloning the sample history,
  * sets the signed identity cookie, and redirects (R1.2–1.5, design §8).
@@ -37,7 +35,7 @@ export async function continueAsGuest(_prev: GuestActionState, formData: FormDat
     const ipHash = hashIp(ip, env.SESSION_SECRET);
     try {
       const recent = await countGuestsFromIpSince(ipHash, new Date(Date.now() - 60 * 60 * 1000));
-      if (recent >= GUEST_LIMIT_PER_HOUR) {
+      if (recent >= env.GUEST_LIMIT_PER_HOUR) {
         return { error: "Too many new profiles from this network. Please try again in an hour." };
       }
       userId = await createGuestUser(ipHash);

@@ -48,6 +48,8 @@ export default defineConfig({
       HF_MOCK: "1",
       APP_ORIGIN: baseURL,
       DEMO_SEED_ON_GUEST: "true",
+      // Every test creates a guest from localhost; repeated runs would hit the production limit of 10/hour.
+      GUEST_LIMIT_PER_HOUR: "1000",
     },
   },
 });
