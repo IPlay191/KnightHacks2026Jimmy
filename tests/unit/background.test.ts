@@ -13,17 +13,18 @@ import {
 } from "@/lib/studio/backgrounds";
 
 describe("camera background catalog", () => {
-  it("offers no background plus office, classroom, and stage", () => {
-    expect(BACKGROUND_IDS).toEqual(["none", "office", "classroom", "stage"]);
+  it("offers no background plus office, classroom, stage, and Knight Hacks", () => {
+    expect(BACKGROUND_IDS).toEqual(["none", "office", "classroom", "stage", "knighthacks"]);
     expect(BACKGROUNDS.none.src).toBeNull();
   });
 
-  it("every scene file exists, is a 1280x720 SVG, and has no scripts or external references", () => {
+  it("every scene file exists; SVG scenes are 1280x720 with no scripts or external references", () => {
     for (const id of BACKGROUND_IDS) {
       const src = BACKGROUNDS[id].src;
       if (!src) continue;
       const file = path.resolve("public", src.replace(/^\//, ""));
-      expect(existsSync(file), file).toBe(true);
+      expect(existsSync(file), `missing background image: ${file}`).toBe(true);
+      if (!file.endsWith(".svg")) continue;
       const svg = readFileSync(file, "utf8");
       expect(svg).toMatch(/<svg[^>]+width="1280"[^>]+height="720"/);
       expect(svg).not.toMatch(/<script|href="http|xlink:href="http|<image/i);

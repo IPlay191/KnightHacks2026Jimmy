@@ -4,7 +4,7 @@
  * unit-tested in Node.
  */
 
-export const BACKGROUND_IDS = ["none", "office", "classroom", "stage"] as const;
+export const BACKGROUND_IDS = ["none", "office", "classroom", "stage", "knighthacks"] as const;
 export type BackgroundId = (typeof BACKGROUND_IDS)[number];
 export type SceneId = Exclude<BackgroundId, "none">;
 
@@ -35,6 +35,12 @@ export const BACKGROUNDS: Record<BackgroundId, BackgroundScene> = {
     label: "Stage",
     description: "Keynote, talk, or competition",
     src: "/backgrounds/stage.svg",
+  },
+  knighthacks: {
+    id: "knighthacks",
+    label: "Knight Hacks",
+    description: "KnightHacks 2026 at UCF",
+    src: "/backgrounds/knighthacks.jpg",
   },
 };
 
